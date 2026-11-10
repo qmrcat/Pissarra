@@ -51,6 +51,26 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16M4 15h16M9 4v16M15 4v16"/></svg>
             <span>Quadrícula</span><kbd>G</kbd>
           </button>
+          <div class="menu-setting" role="group" aria-labelledby="nudge-label">
+            <div class="menu-setting-head">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M9.5 5.5 12 3l2.5 2.5M9.5 18.5 12 21l2.5-2.5M5.5 9.5 3 12l2.5 2.5M18.5 9.5 21 12l-2.5 2.5"/></svg>
+              <span id="nudge-label">Pas de les fletxes</span>
+            </div>
+            <div class="nudge-row">
+              <div class="seg seg-text" id="nudge-seg">
+                <button type="button" data-step="1">1</button>
+                <button type="button" data-step="5">5</button>
+                <button type="button" data-step="10">10</button>
+                <button type="button" data-step="20">20</button>
+                <button type="button" data-step="50">50</button>
+              </div>
+              <label class="nudge-custom" title="Pas personalitzat, d'1 a 500 píxels">
+                <input type="number" id="nudge-input" min="1" max="500" step="1" inputmode="numeric" aria-label="Pas en píxels">
+                <span>px</span>
+              </label>
+            </div>
+            <p class="menu-note">Amb <kbd>Maj</kbd>, 10 vegades més. Amb la quadrícula activa, una casella.</p>
+          </div>
           <button type="button" role="menuitem" data-action="theme" id="menu-theme">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
             <span>Tema clar</span><kbd>Alt+Maj+D</kbd>
@@ -137,6 +157,7 @@
       <section class="prop" data-prop="stroke">
         <h3>Traç</h3>
         <div class="swatches" data-key="stroke">
+          <button type="button" class="swatch swatch-none" data-value="transparent" title="Sense traç (només formes)"></button>
           <button type="button" class="swatch" data-value="#1e1e1e" title="Tinta"></button>
           <button type="button" class="swatch" data-value="#e03131" title="Vermell"></button>
           <button type="button" class="swatch" data-value="#2f9e44" title="Verd"></button>
@@ -255,6 +276,16 @@
         </div>
       </section>
 
+      <section class="prop" data-prop="transform">
+        <h3>Gira i inverteix</h3>
+        <div class="seg">
+          <button type="button" data-action="rotate-left" title="Gira 90° a l'esquerra — Alt+Maj+R"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4 9.4"/><path d="M4 4.5v4.9h4.9"/></svg></button>
+          <button type="button" data-action="rotate-right" title="Gira 90° a la dreta — Maj+R"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3L20 9.4"/><path d="M20 4.5v4.9h-4.9"/></svg></button>
+          <button type="button" data-action="flip-h" title="Inverteix horitzontalment — Maj+H"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18" stroke-dasharray="2 2.6"/><path d="M9 6.5 3.5 17.5H9z"/><path d="M15 6.5l5.5 11H15z"/></svg></button>
+          <button type="button" data-action="flip-v" title="Inverteix verticalment — Maj+V"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18" stroke-dasharray="2 2.6"/><path d="M6.5 9 17.5 3.5V9z"/><path d="M6.5 15l11 5.5V15z"/></svg></button>
+        </div>
+      </section>
+
       <section class="prop" data-prop="align">
         <h3>Alinea</h3>
         <div class="seg">
@@ -270,6 +301,8 @@
       <section class="prop" data-prop="actions">
         <h3>Accions</h3>
         <div class="seg">
+          <button type="button" data-action="group" title="Agrupa — Ctrl+G"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7V4.5a1 1 0 0 1 1-1H7M17 3.5h2.5a1 1 0 0 1 1 1V7M20.5 17v2.5a1 1 0 0 1-1 1H17M7 20.5H4.5a1 1 0 0 1-1-1V17"/><rect x="7" y="7" width="6" height="5" rx="1"/><rect x="11" y="12" width="6" height="5" rx="1"/></svg></button>
+          <button type="button" data-action="ungroup" title="Desagrupa — Ctrl+Maj+G"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7V4.5a1 1 0 0 1 1-1H7M17 3.5h2.5a1 1 0 0 1 1 1V7M20.5 17v2.5a1 1 0 0 1-1 1H17M7 20.5H4.5a1 1 0 0 1-1-1V17" stroke-dasharray="2 2.5"/><rect x="6" y="6" width="6" height="5" rx="1"/><rect x="12" y="13" width="6" height="5" rx="1"/></svg></button>
           <button type="button" data-action="duplicate" title="Duplica — Ctrl+D"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button>
           <button type="button" data-action="delete" title="Elimina — Supr" class="danger"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button>
         </div>
@@ -355,8 +388,13 @@
             <dt>Duplica</dt><dd><kbd>Ctrl</kbd>+<kbd>D</kbd> o <kbd>Alt</kbd>+arrossega</dd>
             <dt>Selecciona-ho tot</dt><dd><kbd>Ctrl</kbd>+<kbd>A</kbd></dd>
             <dt>Elimina</dt><dd><kbd>Supr</kbd></dd>
-            <dt>Mou 1 px / 10 px</dt><dd><kbd>←</kbd><kbd>→</kbd> · <kbd>Maj</kbd>+fletxa</dd>
+            <dt>Mou la selecció</dt><dd>Fletxes (pas al menú) · <kbd>Maj</kbd>+fletxa: ×10</dd>
             <dt>Ordre de capes</dt><dd><kbd>Ctrl</kbd>+<kbd>[</kbd> <kbd>]</kbd> (amb <kbd>Maj</kbd>: extrem)</dd>
+            <dt>Agrupa / Desagrupa</dt><dd><kbd>Ctrl</kbd>+<kbd>G</kbd> · <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>G</kbd></dd>
+            <dt>Edita dins d'un grup</dt><dd>Doble clic (surt amb <kbd>Esc</kbd>)</dd>
+            <dt>Gira</dt><dd>Nansa rodona (amb <kbd>Maj</kbd>: passos de 15°)</dd>
+            <dt>Gira 90°</dt><dd><kbd>Maj</kbd>+<kbd>R</kbd> · <kbd>Alt</kbd>+<kbd>Maj</kbd>+<kbd>R</kbd></dd>
+            <dt>Inverteix horitzontal / vertical</dt><dd><kbd>Maj</kbd>+<kbd>H</kbd> · <kbd>Maj</kbd>+<kbd>V</kbd></dd>
             <dt>Edita el text</dt><dd>Doble clic o <kbd>Retorn</kbd></dd>
             <dt>Proporcions / angles de 15°</dt><dd><kbd>Maj</kbd> mentre dibuixes</dd>
             <dt>Afegeix un punt a una línia</dt><dd>Arrossega el punt del mig</dd>

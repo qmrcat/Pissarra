@@ -146,9 +146,26 @@
     }
     return { x: 0, y: 0, w: el.w || 0, h: el.h || 0 };
   }
-  function getBounds(el) {
+  /** Caixa de l'element sense tenir en compte el gir. */
+  function rawBounds(el) {
     const b = localBounds(el);
     return { x: el.x + b.x, y: el.y + b.y, w: b.w, h: b.h };
+  }
+  /** Centre de l'element (és el punt al voltant del qual gira). */
+  function elCenter(el) {
+    const b = rawBounds(el);
+    return [b.x + b.w / 2, b.y + b.h / 2];
+  }
+  /** Caixa alineada amb els eixos que conté l'element, ja girat. */
+  function getBounds(el) {
+    const b = rawBounds(el);
+    const a = el.angle || 0;
+    if (!a) return b;
+    const c = Math.abs(Math.cos(a));
+    const s = Math.abs(Math.sin(a));
+    const w = b.w * c + b.h * s;
+    const h = b.w * s + b.h * c;
+    return { x: b.x + b.w / 2 - w / 2, y: b.y + b.h / 2 - h / 2, w, h };
   }
   function sceneBounds(els) {
     if (!els.length) return { x: 0, y: 0, w: 0, h: 0 };
@@ -216,7 +233,7 @@
             ops.push({ t: 'hachure', clip: clean, d, width: Math.max(1, sw * 0.5) });
           }
         }
-        ops.push({ t: 'stroke', d: rough, width: sw, dash });
+        ops.push({ t: 'stroke', d: rough, clean, width: sw, dash });
         break;
       }
       case 'line':
@@ -302,7 +319,15 @@
   function drawImage(ctx, el, theme, opts) {
     const e = getImg(el.fileId, opts.files, opts.onImageLoad);
     if (e && e.ok) {
-      ctx.drawImage(e.img, 0, 0, el.w, el.h);
+      if (el.flipX || el.flipY) {
+        ctx.save();
+        ctx.translate(el.flipX ? el.w : 0, el.flipY ? el.h : 0);
+        ctx.scale(el.flipX ? -1 : 1, el.flipY ? -1 : 1);
+        ctx.drawImage(e.img, 0, 0, el.w, el.h);
+        ctx.restore();
+      } else {
+        ctx.drawImage(e.img, 0, 0, el.w, el.h);
+      }
       return;
     }
     const th = THEMES[theme];
@@ -319,7 +344,18 @@
     opts = opts || {};
     const ops = getOps(el);
     ctx.save();
-    ctx.translate(el.x, el.y);
+    const a = el.angle || 0;
+    if (a) {
+      // Gir al voltant del centre de l'element
+      const lb = localBounds(el);
+      const cx = lb.x + lb.w / 2;
+      const cy = lb.y + lb.h / 2;
+      ctx.translate(el.x + cx, el.y + cy);
+      ctx.rotate(a);
+      ctx.translate(-cx, -cy);
+    } else {
+      ctx.translate(el.x, el.y);
+    }
     ctx.globalAlpha = ((el.opacity == null ? 100 : el.opacity) / 100) * (opts.faded ? 0.25 : 1);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -341,6 +377,20 @@
           ctx.restore();
           break;
         case 'stroke':
+          if (stroke === 'transparent') {
+            // Forma sense traç ni fons: a l'editor es mostra una vora tènue per poder-la trobar
+            if (opts.ghost && op.clean && (!el.fill || el.fill === 'transparent')) {
+              const z = opts.zoom || 1;
+              ctx.save();
+              ctx.globalAlpha *= 0.7;
+              ctx.strokeStyle = THEMES[theme].muted;
+              ctx.lineWidth = 1 / z;
+              ctx.setLineDash([5 / z, 5 / z]);
+              ctx.stroke(p2d(op, 'clean'));
+              ctx.restore();
+            }
+            break;
+          }
           ctx.strokeStyle = stroke;
           ctx.lineWidth = op.width;
           ctx.setLineDash(op.dash || []);
@@ -391,6 +441,15 @@
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const n2 = (v) => Math.round(v * 100) / 100;
 
+  function svgTransform(el, ox, oy) {
+    let t = 'translate(' + n2(el.x + ox) + ' ' + n2(el.y + oy) + ')';
+    if (el.angle) {
+      const lb = localBounds(el);
+      t += ' rotate(' + n2((el.angle * 180) / Math.PI) + ' ' + n2(lb.x + lb.w / 2) + ' ' + n2(lb.y + lb.h / 2) + ')';
+    }
+    return t;
+  }
+
   function toSVG(els, opts) {
     const theme = opts.theme || 'light';
     const files = opts.files || {};
@@ -403,11 +462,12 @@
       const stroke = themeColor(el.stroke, theme);
       const fill = themeColor(el.fill, theme);
       const op100 = el.opacity == null ? 100 : el.opacity;
-      let g = '<g transform="translate(' + n2(el.x + ox) + ' ' + n2(el.y + oy) + ')"' + (op100 < 100 ? ' opacity="' + op100 / 100 + '"' : '') + '>';
+      let g = '<g transform="' + svgTransform(el, ox, oy) + '"' + (op100 < 100 ? ' opacity="' + op100 / 100 + '"' : '') + '>';
       for (const op of getOps(el)) {
         if (op.t === 'fill') {
           g += '<path d="' + op.d + '" fill="' + fill + '" stroke="none"/>';
         } else if (op.t === 'stroke') {
+          if (stroke === 'transparent') continue;
           g += '<path d="' + op.d + '" fill="none" stroke="' + stroke + '" stroke-width="' + op.width +
             '" stroke-linecap="round" stroke-linejoin="round"' + (op.dash ? ' stroke-dasharray="' + op.dash.join(' ') + '"' : '') + '/>';
         } else if (op.t === 'hachure') {
@@ -427,7 +487,10 @@
           });
         } else if (op.t === 'image') {
           const src = files[el.fileId];
-          if (src) g += '<image href="' + esc(src) + '" x="0" y="0" width="' + n2(el.w) + '" height="' + n2(el.h) + '" preserveAspectRatio="none"/>';
+          const flip = el.flipX || el.flipY
+            ? ' transform="matrix(' + (el.flipX ? -1 : 1) + ' 0 0 ' + (el.flipY ? -1 : 1) + ' ' + (el.flipX ? n2(el.w) : 0) + ' ' + (el.flipY ? n2(el.h) : 0) + ')"'
+            : '';
+          if (src) g += '<image href="' + esc(src) + '" x="0" y="0" width="' + n2(el.w) + '" height="' + n2(el.h) + '" preserveAspectRatio="none"' + flip + '/>';
         }
       }
       body += g + '</g>';
@@ -446,7 +509,7 @@
   global.PissarraRender = {
     LH, FONTS, THEMES,
     themeColor, measureText, clearMetrics, baselineOffset,
-    getOps, getBounds, sceneBounds, linearSamples, freedrawWidth,
+    getOps, getBounds, rawBounds, elCenter, sceneBounds, linearSamples, freedrawWidth,
     drawElement, preloadImages, renderToCanvas, toSVG,
   };
 })(window);

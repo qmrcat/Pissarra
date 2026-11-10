@@ -19,15 +19,20 @@ Està feta amb **HTML, CSS i JavaScript purs**: sense frameworks ni llibreries i
 
 **Estil**
 - Color del traç i del fons (paleta i color personalitzat).
+- Traç transparent per als rectangles, rombes i el·lipses (per fer formes només amb fons). No s'aplica a línies, fletxes, llapis ni text, perquè quedarien invisibles. Si una forma es queda sense traç ni fons, a l'editor es mostra amb una vora discontínua tènue per poder-la trobar; aquesta vora no surt a les exportacions.
 - Emplenat ratllat, quadriculat o sòlid.
 - Gruix, traç continu / discontinu / puntejat i opacitat.
 
 **Edició**
 - Selecció individual, múltiple (Maj + clic) o per àrea.
 - Moure, canviar la mida (amb Maj per mantenir les proporcions) i editar els punts de línies i fletxes.
+- **Girar** qualsevol element o selecció amb la nansa rodona (amb Maj, en passos de 15°; s'enganxa suaument als angles rectes) o en passos de 90° amb els botons.
+- **Invertir** horitzontalment o verticalment, respecte al centre de la selecció. Les línies, fletxes, traços de llapis i imatges es reflecteixen; el text es manté llegible.
 - Desfer i refer, copiar, retallar, enganxar i duplicar (també Alt + arrossegar).
 - Ordre de capes i alineació de diversos elements.
+- **Agrupar i desagrupar** elements, també amb grups dins d'altres grups. Un clic selecciona tot el grup, que es mou, gira, inverteix, duplica i esborra com una sola peça. Amb doble clic s'entra dins del grup per treballar amb un element concret (o un subgrup); `Esc` o un clic fora en surten.
 - Quadrícula amb ajust automàtic.
+- Moure la selecció amb les fletxes del teclat, amb un **pas configurable** des del menú («Pas de les fletxes»): 1, 5, 10, 20 o 50 píxels, o qualsevol valor d'1 a 500. Amb `Maj` es mou 10 vegades el pas, i amb la quadrícula activa, una casella. La preferència es desa al navegador.
 
 **Vista**
 - Llenç infinit amb desplaçament i zoom (roda, trackpad, Espai + arrossegar, pessic amb dos dits).
@@ -91,8 +96,13 @@ Com que són fitxers estàtics, es pot publicar tal qual a GitHub Pages, Netlify
 | Duplicar | `Ctrl+D` o `Alt` + arrossegar |
 | Seleccionar-ho tot | `Ctrl+A` |
 | Eliminar | `Supr` o `Retrocés` |
-| Moure 1 px / 10 px | Fletxes / `Maj` + fletxes |
+| Moure la selecció | Fletxes (el pas es tria al menú, «Pas de les fletxes») / `Maj` + fletxes: 10 vegades el pas |
 | Portar endavant / enrere | `Ctrl+]` / `Ctrl+[` (amb `Maj`: al davant / al fons) |
+| Girar | Arrossegar la nansa rodona (amb `Maj`: passos de 15°) |
+| Girar 90° a la dreta / a l'esquerra | `Maj+R` / `Alt+Maj+R` |
+| Invertir horitzontalment / verticalment | `Maj+H` / `Maj+V` |
+| Agrupar / Desagrupar | `Ctrl+G` / `Ctrl+Maj+G` |
+| Editar dins d'un grup | Doble clic sobre el grup (`Esc` per sortir-ne) |
 | Editar el text seleccionat | `Retorn` |
 | Confirmar el text | `Esc` o `Ctrl+Retorn` |
 | Proporcions fixes / angles de 15° | Mantenir `Maj` mentre es dibuixa |
@@ -138,6 +148,8 @@ Els scripts són clàssics (no mòduls ES) perquè la pàgina funcioni també ob
 - `sketch.js` converteix la geometria en camins SVG amb un petit soroll determinista (llavor per element). El mateix camí es pinta al canvas amb `Path2D` i s'escriu tal qual a l'exportació SVG, així el PNG i l'SVG coincideixen amb el que es veu a la pantalla.
 - Els camins es guarden en memòria cau i només es recalculen quan l'element canvia de forma o d'estil (no quan es mou).
 - L'historial guarda instantànies dels elements; les imatges es guarden a part per no inflar-lo.
+- Les formes, els textos i les imatges tenen un camp `angle` (en radians) i giren al voltant del seu centre; les imatges també tenen `flipX` i `flipY`. Les línies, les fletxes i el llapis no guarden angle: quan es giren o s'inverteixen, es transformen directament els seus punts.
+- Cada element té un camp `groupIds` amb els identificadors dels grups als quals pertany, del més intern al més extern (el mateix criteri que l'Excalidraw). Els grups que es queden amb menys de dos elements s'eliminen automàticament.
 
 ---
 
@@ -190,11 +202,11 @@ L'única cosa externa és la lletra **Caveat** de Google Fonts, per al text "a m
 
 ## Limitacions conegudes
 
-- No es poden girar elements ni agrupar-los.
+- En una selecció de diversos elements on n'hi ha algun de girat, el canvi de mida sempre manté les proporcions (si no, els elements girats es deformarien).
 - Les fletxes no s'enganxen a les formes (si mous una forma, la fletxa no la segueix).
 - El text no s'ajusta automàticament dins d'una forma: el doble clic sobre una forma crea un text centrat, però és un element independent.
 - No hi ha col·laboració en temps real.
-- La importació d'Excalidraw és bàsica: s'ignoren la rotació, els grups, els vincles entre fletxes i formes i els marcs.
+- La importació d'Excalidraw és bàsica: es conserven el gir, els grups i les imatges invertides, però s'ignoren els vincles entre fletxes i formes i els marcs.
 - El desament automàtic depèn de l'espai del navegador (normalment uns 5 MB). Amb moltes imatges grans pot no caber-hi tot; en aquest cas, l'aplicació avisa i convé desar el dibuix a un fitxer.
 
 ---

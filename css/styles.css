@@ -186,12 +186,52 @@ kbd {
   top: calc(100% + 8px);
   left: 0;
   min-width: 260px;
+  max-height: calc(100dvh - 80px - var(--safe-t) - var(--safe-b));
+  overflow-y: auto;
   padding: 6px;
   display: flex;
   flex-direction: column;
   z-index: 30;
 }
 .menu[hidden] { display: none; }
+
+/* Preferència del pas de les fletxes */
+.menu-setting { padding: 8px 10px 6px; display: flex; flex-direction: column; gap: 8px; }
+.menu-setting-head { display: flex; align-items: center; gap: 10px; }
+.nudge-row { display: flex; align-items: center; gap: 6px; padding-left: 30px; }
+.menu .nudge-row .seg { flex-wrap: nowrap; gap: 3px; }
+.menu .nudge-row .seg button {
+  display: inline-grid;
+  place-items: center;
+  width: auto;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  border-radius: 7px;
+  background: var(--chip);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.menu .nudge-row .seg button:hover { background: var(--hover); }
+.menu .nudge-row .seg button.active { background: var(--active-bg); color: var(--active-text); }
+.nudge-custom { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12.5px; }
+.nudge-custom input {
+  width: 54px;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--island-border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.nudge-custom input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; }
+.menu-note { margin: 0; padding-left: 30px; font-size: 11.5px; color: var(--muted); }
+.menu .menu-note kbd { display: inline; font-size: 10.5px; }
 .menu button {
   display: flex;
   align-items: center;
@@ -216,7 +256,7 @@ kbd {
   position: absolute;
   top: calc(var(--gap) + var(--safe-t) + 56px);
   left: calc(var(--gap) + var(--safe-l));
-  width: 214px;
+  width: 226px;
   max-height: calc(100% - 140px - var(--safe-t) - var(--safe-b));
   overflow-y: auto;
   padding: 12px;
@@ -237,12 +277,12 @@ kbd {
 }
 .prop h3 output { font-weight: 500; font-variant-numeric: tabular-nums; }
 
-.swatches { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.swatches { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .swatch {
   --c: transparent;
   position: relative;
-  width: 26px;
-  height: 26px;
+  width: 25px;
+  height: 25px;
   padding: 0;
   border-radius: 7px;
   border: 1px solid var(--island-border);
@@ -250,6 +290,7 @@ kbd {
   cursor: pointer;
   touch-action: manipulation;
 }
+.swatch:disabled { opacity: 0.3; cursor: default; }
 .swatch.active { box-shadow: 0 0 0 2px var(--island), 0 0 0 4px var(--accent); }
 .swatch-none {
   background:
@@ -289,6 +330,7 @@ kbd {
 .seg button:hover { background: var(--hover); }
 .seg button.active { background: var(--active-bg); color: var(--active-text); }
 .seg button.danger { color: var(--danger); }
+.seg button:disabled { opacity: 0.35; cursor: default; background: var(--chip); }
 .seg-text button { font-size: 13px; font-weight: 600; }
 .ff-hand { font-family: var(--font-hand); font-size: 19px !important; font-weight: 600; }
 .ff-normal { font-family: var(--font-ui); }
