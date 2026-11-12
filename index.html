@@ -36,7 +36,7 @@
           </button>
           <button type="button" role="menuitem" data-action="save">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/></svg>
-            <span>Desa a un fitxer…</span><kbd>Ctrl+S</kbd>
+            <span>Desa a…</span><kbd>Ctrl+S</kbd>
           </button>
           <button type="button" role="menuitem" data-action="export">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 16l-5-5L5 19.5"/></svg>
@@ -70,6 +70,45 @@
               </label>
             </div>
             <p class="menu-note">Amb <kbd>Maj</kbd>, 10 vegades més. Amb la quadrícula activa, una casella.</p>
+          </div>
+          <div class="menu-setting" role="group" aria-labelledby="bg-label">
+            <div class="menu-setting-head">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 15.5l17-7" opacity=".55"/><path d="M8 19.5l12.5-5.2"/></svg>
+              <span id="bg-label">Fons de la pissarra</span>
+            </div>
+            <div class="swatches menu-swatches" id="bg-swatches">
+              <button type="button" class="swatch swatch-default" data-bg="default" title="Per defecte del tema"></button>
+              <button type="button" class="swatch" data-bg="#f8f9fa" title="Gris"></button>
+              <button type="button" class="swatch" data-bg="#fdf8f6" title="Paper"></button>
+              <button type="button" class="swatch" data-bg="#fff9db" title="Groc"></button>
+              <button type="button" class="swatch" data-bg="#e7f5ff" title="Blau"></button>
+              <button type="button" class="swatch" data-bg="#ebfbee" title="Verd"></button>
+              <button type="button" class="swatch swatch-custom" data-picker="bg" title="Més colors…" aria-label="Més colors per al fons de la pissarra" aria-haspopup="dialog"></button>
+            </div>
+            <div class="bgimg">
+              <button type="button" class="btn-chip" id="bgimg-pick">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 16l-5-5L5 19.5"/></svg>
+                <span>Imatge de fons…</span>
+              </button>
+              <div class="bgimg-set" id="bgimg-set" hidden>
+                <div class="bgimg-head">
+                  <span class="bgimg-thumb" id="bgimg-thumb" role="img" aria-label="Imatge de fons actual"></span>
+                  <button type="button" class="btn-chip" id="bgimg-change">Canvia…</button>
+                  <button type="button" class="btn-chip danger" id="bgimg-remove">Treu</button>
+                </div>
+                <div class="seg seg-text" id="bgimg-mode" role="group" aria-label="Col·locació de la imatge">
+                  <button type="button" data-mode="cover" title="Omple tota la pantalla (no es mou amb el dibuix)">Cobreix</button>
+                  <button type="button" data-mode="contain" title="Imatge sencera i centrada a la pantalla">Centrada</button>
+                  <button type="button" data-mode="tile" title="Es repeteix i es mou i s'amplia amb el dibuix">Mosaic</button>
+                </div>
+                <label class="bgimg-op">
+                  <span>Opacitat</span>
+                  <input type="range" id="bgimg-opacity" min="10" max="100" step="5" value="100">
+                  <output id="bgimg-op-out">100%</output>
+                </label>
+              </div>
+            </div>
+            <p class="menu-note">Es desa amb el dibuix. El color s'adapta al tema clar o fosc; la imatge no.</p>
           </div>
           <button type="button" role="menuitem" data-action="theme" id="menu-theme">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
@@ -139,6 +178,15 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 20h11"/><path d="M4.7 15.3l9.8-9.8a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8l-8.3 8.3a4 4 0 0 1-2.8 1.2H8.3a2 2 0 0 1-1.4-.6l-2.2-2.2a1.2 1.2 0 0 1 0-1.9z"/><path d="M9.5 10.5l5 5"/></svg>
           <span class="kbd">0</span>
         </button>
+        <span class="tool-sep" aria-hidden="true"></span>
+        <button type="button" class="tool-btn" data-tool="bucket" aria-pressed="false" title="Pot de pintura — B (Alt+clic: agafa un color)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3.5l8.5 8.5-6.3 6.3a2 2 0 0 1-2.8 0l-4.9-4.9a2 2 0 0 1 0-2.8z"/><path d="M4.5 11.5h12.5"/><path d="M19.8 15.5s-1.6 2.2-1.6 3.3a1.6 1.6 0 0 0 3.2 0c0-1.1-1.6-3.3-1.6-3.3z"/></svg>
+          <span class="kbd">B</span>
+        </button>
+        <button type="button" class="tool-btn" data-tool="eyedropper" aria-pressed="false" title="Comptagotes — I">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5l3 3M12.5 8.5l-8 8V19.5h3l8-8"/><path d="M15.5 5.5l1.6-1.6a2.1 2.1 0 0 1 3 3l-1.6 1.6z" fill="currentColor"/></svg>
+          <span class="kbd">I</span>
+        </button>
       </nav>
 
       <div class="top-right">
@@ -154,6 +202,14 @@
 
     <!-- Panell de propietats -->
     <aside id="props" class="island props" aria-label="Propietats">
+      <section class="prop" data-prop="bucketTarget">
+        <h3>Pinta</h3>
+        <div class="seg seg-text" data-key="bucketTarget">
+          <button type="button" data-value="fill" title="Pinta el fons de les formes">Fons</button>
+          <button type="button" data-value="stroke" title="Pinta el traç (també línies, llapis i text)">Traç</button>
+        </div>
+        <p class="prop-note">Fes clic o arrossega sobre els elements. Amb <kbd>Alt</kbd>+clic agafes un color.</p>
+      </section>
       <section class="prop" data-prop="stroke">
         <h3>Traç</h3>
         <div class="swatches" data-key="stroke">
@@ -163,7 +219,7 @@
           <button type="button" class="swatch" data-value="#2f9e44" title="Verd"></button>
           <button type="button" class="swatch" data-value="#1971c2" title="Blau"></button>
           <button type="button" class="swatch" data-value="#f08c00" title="Taronja"></button>
-          <label class="swatch swatch-custom" title="Color personalitzat"><input type="color" data-key="stroke" value="#1e1e1e" aria-label="Color de traç personalitzat"></label>
+          <button type="button" class="swatch swatch-custom" data-picker="stroke" title="Més colors…" aria-label="Més colors per al traç" aria-haspopup="dialog"></button>
         </div>
       </section>
 
@@ -175,7 +231,7 @@
           <button type="button" class="swatch" data-value="#b2f2bb" title="Verd clar"></button>
           <button type="button" class="swatch" data-value="#a5d8ff" title="Blau clar"></button>
           <button type="button" class="swatch" data-value="#ffec99" title="Groc"></button>
-          <label class="swatch swatch-custom" title="Color personalitzat"><input type="color" data-key="fill" value="#ffc9c9" aria-label="Color de fons personalitzat"></label>
+          <button type="button" class="swatch swatch-custom" data-picker="fill" title="Més colors…" aria-label="Més colors per al fons" aria-haspopup="dialog"></button>
         </div>
       </section>
 
@@ -326,6 +382,30 @@
       </button>
     </footer>
 
+    <!-- Selector de color propi -->
+    <div id="color-picker" class="island cp" role="dialog" aria-labelledby="cp-title" hidden>
+      <div class="cp-head">
+        <span class="cp-title" id="cp-title">Color</span>
+        <button type="button" class="icon-btn cp-close" id="cp-close" title="Tanca — Esc" aria-label="Tanca"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="cp-basics" id="cp-basics"></div>
+      <div class="cp-palette" id="cp-palette" role="group" aria-label="Paleta"></div>
+      <div class="cp-recent-wrap" id="cp-recent-wrap" hidden>
+        <span class="cp-label">Recents</span>
+        <div class="cp-recent" id="cp-recent"></div>
+      </div>
+      <div class="cp-sv" id="cp-sv" tabindex="0" role="slider" aria-label="Saturació i brillantor" aria-valuetext="">
+        <div class="cp-sv-handle" id="cp-sv-handle"></div>
+      </div>
+      <input type="range" class="cp-hue" id="cp-hue" min="0" max="359" step="1" aria-label="To">
+      <div class="cp-row">
+        <span class="cp-preview" id="cp-preview" title="Com es veurà"></span>
+        <label class="cp-hex"><span aria-hidden="true">#</span><input type="text" id="cp-hex" maxlength="7" spellcheck="false" autocomplete="off" aria-label="Codi hexadecimal"></label>
+        <button type="button" class="icon-btn" id="cp-eyedrop" title="Agafa un color de la pissarra" aria-label="Agafa un color de la pissarra" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6.5l3 3M12.5 8.5l-8 8V19.5h3l8-8"/><path d="M15.5 5.5l1.6-1.6a2.1 2.1 0 0 1 3 3l-1.6 1.6z" fill="currentColor"/></svg></button>
+      </div>
+      <p class="cp-note" id="cp-note" hidden>En tema fosc els colors s'adapten perquè es llegeixin bé. La mostra de l'esquerra és com es veurà.</p>
+    </div>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </div>
 
@@ -339,6 +419,7 @@
       <div class="export-preview" id="export-preview-box"><canvas id="export-preview"></canvas></div>
       <div class="export-options">
         <label class="check"><input type="checkbox" id="exp-bg" checked> Amb fons</label>
+        <label class="check" id="exp-bgimg-row" title="Inclou la imatge de fons de la pissarra (cal «Amb fons»)"><input type="checkbox" id="exp-bgimg" checked> Imatge de fons</label>
         <label class="check"><input type="checkbox" id="exp-dark"> Tema fosc</label>
         <label class="check"><input type="checkbox" id="exp-sel"> Només la selecció</label>
         <div class="seg seg-text" id="exp-scale" role="group" aria-label="Escala">
@@ -351,6 +432,44 @@
         <button type="button" class="btn" id="exp-copy">Copia</button>
         <button type="button" class="btn" id="exp-svg">SVG</button>
         <button type="button" class="btn primary" id="exp-png">PNG</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Diàleg «Desa a…»: fitxer o enllaç per compartir -->
+  <dialog id="save-dialog" aria-labelledby="save-title">
+    <form method="dialog" class="dlg">
+      <div class="dlg-head">
+        <h2 id="save-title">Desa a…</h2>
+        <button class="icon-btn" value="close" title="Tanca" aria-label="Tanca"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="save-options">
+        <section class="save-card" aria-labelledby="save-file-title">
+          <h3 id="save-file-title">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3.5H7a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5z"/><path d="M14 3.5v5h5M12 11.5v6M9.5 15l2.5 2.5 2.5-2.5"/></svg>
+            Fitxer
+          </h3>
+          <p>Desa el dibuix en un fitxer <code>.json</code> al teu dispositiu. El podràs tornar a obrir amb «Obre…» o arrossegant-lo a la pissarra.</p>
+          <button type="button" class="btn" id="save-file-btn">Desa el fitxer</button>
+        </section>
+        <section class="save-card" aria-labelledby="share-title">
+          <h3 id="share-title">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg>
+            Enllaç per compartir
+          </h3>
+          <p>Crea un enllaç que porta tot el dibuix a dins, sense cap servidor. Qui l'obri el veurà al seu navegador i en tindrà una còpia per editar.</p>
+          <label class="check" id="share-images-row"><input type="checkbox" id="share-images"> Inclou les imatges</label>
+          <button type="button" class="btn primary" id="share-create">Crea l'enllaç</button>
+          <div class="share-result" id="share-result" hidden>
+            <div class="share-link-row">
+              <input type="text" id="share-url" readonly aria-label="Enllaç per compartir" spellcheck="false">
+              <button type="button" class="btn" id="share-copy">Copia</button>
+            </div>
+            <button type="button" class="btn" id="share-native" hidden>Comparteix…</button>
+          </div>
+          <p class="share-info" id="share-info" role="status" hidden></p>
+          <p class="share-info warn" id="share-local-note" hidden>Ara la pissarra s'obre des d'un fitxer de l'ordinador, i l'enllaç només funcionarà en aquest ordinador. Per compartir-lo amb altres persones, publica la pissarra en un servidor web (ho explica el README).</p>
+        </section>
       </div>
     </form>
   </dialog>
@@ -377,6 +496,8 @@
             <dt>Text</dt><dd><kbd>T</kbd> <kbd>8</kbd></dd>
             <dt>Imatge</dt><dd><kbd>9</kbd></dd>
             <dt>Goma</dt><dd><kbd>E</kbd> <kbd>0</kbd></dd>
+            <dt>Pot de pintura</dt><dd><kbd>B</kbd></dd>
+            <dt>Comptagotes</dt><dd><kbd>I</kbd></dd>
             <dt>Mantén l'eina</dt><dd><kbd>Q</kbd></dd>
           </dl>
         </section>
@@ -392,11 +513,15 @@
             <dt>Ordre de capes</dt><dd><kbd>Ctrl</kbd>+<kbd>[</kbd> <kbd>]</kbd> (amb <kbd>Maj</kbd>: extrem)</dd>
             <dt>Agrupa / Desagrupa</dt><dd><kbd>Ctrl</kbd>+<kbd>G</kbd> · <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>G</kbd></dd>
             <dt>Edita dins d'un grup</dt><dd>Doble clic (surt amb <kbd>Esc</kbd>)</dd>
+            <dt>Agafa un color amb el pot</dt><dd><kbd>Alt</kbd>+clic</dd>
             <dt>Gira</dt><dd>Nansa rodona (amb <kbd>Maj</kbd>: passos de 15°)</dd>
             <dt>Gira 90°</dt><dd><kbd>Maj</kbd>+<kbd>R</kbd> · <kbd>Alt</kbd>+<kbd>Maj</kbd>+<kbd>R</kbd></dd>
             <dt>Inverteix horitzontal / vertical</dt><dd><kbd>Maj</kbd>+<kbd>H</kbd> · <kbd>Maj</kbd>+<kbd>V</kbd></dd>
             <dt>Edita el text</dt><dd>Doble clic o <kbd>Retorn</kbd></dd>
             <dt>Proporcions / angles de 15°</dt><dd><kbd>Maj</kbd> mentre dibuixes</dd>
+            <dt>Enganxa una fletxa o línia</dt><dd>Comença-la o acaba-la sobre un element</dd>
+            <dt>Dibuixa sense enganxar</dt><dd><kbd>Ctrl</kbd> mentre dibuixes</dd>
+            <dt>Desenganxa un extrem</dt><dd>Arrossega'l fora de l'element</dd>
             <dt>Afegeix un punt a una línia</dt><dd>Arrossega el punt del mig</dd>
             <dt>Treu un punt</dt><dd>Doble clic sobre el punt</dd>
           </dl>
@@ -409,7 +534,7 @@
             <dt>Ajusta a la pantalla</dt><dd><kbd>Maj</kbd>+<kbd>1</kbd></dd>
             <dt>Quadrícula</dt><dd><kbd>G</kbd></dd>
             <dt>Tema clar / fosc</dt><dd><kbd>Alt</kbd>+<kbd>Maj</kbd>+<kbd>D</kbd></dd>
-            <dt>Obre / Desa</dt><dd><kbd>Ctrl</kbd>+<kbd>O</kbd> · <kbd>Ctrl</kbd>+<kbd>S</kbd></dd>
+            <dt>Obre / Desa a… (fitxer o enllaç)</dt><dd><kbd>Ctrl</kbd>+<kbd>O</kbd> · <kbd>Ctrl</kbd>+<kbd>S</kbd></dd>
             <dt>Exporta</dt><dd><kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>E</kbd></dd>
           </dl>
           <h3>Pantalles tàctils</h3>
@@ -437,6 +562,7 @@
 
   <input type="file" id="file-open" accept=".json,.pissarra,.excalidraw,application/json" hidden>
   <input type="file" id="file-image" accept="image/*" hidden>
+  <input type="file" id="file-bg" accept="image/*" hidden>
 
   <script src="js/sketch.js"></script>
   <script src="js/renderer.js"></script>

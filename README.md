@@ -15,10 +15,21 @@ Està feta amb **HTML, CSS i JavaScript purs**: sense frameworks ni llibreries i
 - Text de diverses línies, amb tres tipus de lletra (a mà, normal i de codi), quatre mides i alineació.
 - Imatges: des del botó, arrossegant un fitxer o enganxant-les del porta-retalls.
 - Goma d'esborrar.
+- **Pot de pintura** (`B`): pinta els elements sobre els quals fas clic (o arrossegues) amb el color triat al panell. A «Pinta» tries si pinta el **fons** (rectangles, rombes i el·lipses, amb l'estil d'emplenat triat; n'hi ha prou de fer clic a l'interior, encara que la forma no tingui fons) o el **traç** (també línies, fletxes, llapis i text). Cada arrossegada és un sol pas de l'historial. Amb `Alt`+clic agafa el color de sota i el fa servir per pintar.
+- **Comptagotes** (`I`): agafa el color d'un element (el fons, si fas clic a l'interior d'una forma amb fons; si no, el traç), d'un punt d'una imatge o, si no hi ha res, el fons de la pissarra. El color passa a ser el color de fons o de traç actual (el que faran servir el pot i les eines de dibuix) i es torna a l'eina anterior. El color agafat és el desat, no el que es veu en tema fosc, de manera que és coherent en tots dos temes.
+- Amb el pot i el comptagotes, l'element que es pintarà o del qual s'agafarà el color es ressalta en passar-hi per sobre.
 - Traç "a mà" generat pel propi programa, amb tres nivells: net, natural i desmanegat. Cada element té una llavor aleatòria, de manera que el dibuix no tremola quan es mou.
 
 **Estil**
 - Color del traç i del fons (paleta i color personalitzat).
+- **Selector de color propi**, en lloc de la finestra del sistema (botó de l'arc de Sant Martí, «Més colors…»). Serveix per al traç, el fons dels elements i el fons de la pissarra, i té:
+  - una paleta de 11 tons × 6 intensitats (colors [Open Color](https://yeun.github.io/open-color/), la mateixa família que fa servir l'Excalidraw), més transparent o «per defecte», tinta i blanc;
+  - els colors recents (els últims 11, desats al navegador);
+  - un quadre de saturació i brillantor amb una barra de to;
+  - el codi hexadecimal (accepta `#abc` i `#aabbcc`) i una mostra de com es veurà;
+  - un comptagotes per agafar el color d'un element o de la pissarra (funciona a tots els navegadors).
+  
+  Els canvis es veuen a l'instant i queden com un sol pas de l'historial en tancar el selector (`Esc`, la creu o un clic fora). Funciona amb ratolí, teclat (fletxes al quadre de color) i dit; al mòbil s'obre com un full a la part inferior.
 - Traç transparent per als rectangles, rombes i el·lipses (per fer formes només amb fons). No s'aplica a línies, fletxes, llapis ni text, perquè quedarien invisibles. Si una forma es queda sense traç ni fons, a l'editor es mostra amb una vora discontínua tènue per poder-la trobar; aquesta vora no surt a les exportacions.
 - Emplenat ratllat, quadriculat o sòlid.
 - Gruix, traç continu / discontinu / puntejat i opacitat.
@@ -32,6 +43,13 @@ Està feta amb **HTML, CSS i JavaScript purs**: sense frameworks ni llibreries i
 - Ordre de capes i alineació de diversos elements.
 - **Agrupar i desagrupar** elements, també amb grups dins d'altres grups. Un clic selecciona tot el grup, que es mou, gira, inverteix, duplica i esborra com una sola peça. Amb doble clic s'entra dins del grup per treballar amb un element concret (o un subgrup); `Esc` o un clic fora en surten.
 - Quadrícula amb ajust automàtic.
+- **Color de fons de la pissarra** des del menú («Fons de la pissarra»): el del tema (per defecte), gris, paper, groc, blau, verd o un color personalitzat. Com els altres colors, s'adapta al tema: en tema fosc es converteix en un gris fosc amb un toc del mateix to. Es desa amb el dibuix (al navegador i als fitxers), s'aplica a l'exportació quan s'hi inclou el fons i s'importa dels fitxers `.excalidraw`.
+- **Imatge de fons de la pissarra**, al mateix apartat del menú («Imatge de fons…»), amb tres maneres de col·locar-la:
+  - **Cobreix:** omple tota la pantalla i no es mou amb el dibuix (com un fons d'escriptori).
+  - **Centrada:** la imatge sencera, centrada a la pantalla.
+  - **Mosaic:** es repeteix i es mou i s'amplia amb el dibuix (útil per a textures o papers quadriculats).
+
+  Té una opacitat ajustable (10–100 %) perquè el dibuix es llegeixi bé. Per ocupar poc, la imatge es redueix a 2.048 px pel costat més llarg i es desa en JPEG si no té transparència (en PNG si en té). Es desa amb el dibuix (al navegador, als fitxers i a l'enllaç per compartir, si hi inclous les imatges), surt a l'exportació PNG i SVG quan s'hi inclou el fons (amb l'opció «Imatge de fons» es pot exportar sense, només amb el color de fons), i el comptagotes en pot agafar colors. A diferència del color de fons, la imatge no s'adapta al tema: en tema fosc, sobre una imatge clara, pot convenir baixar-ne l'opacitat o passar al tema clar.
 - Moure la selecció amb les fletxes del teclat, amb un **pas configurable** des del menú («Pas de les fletxes»): 1, 5, 10, 20 o 50 píxels, o qualsevol valor d'1 a 500. Amb `Maj` es mou 10 vegades el pas, i amb la quadrícula activa, una casella. La preferència es desa al navegador.
 
 **Vista**
@@ -40,9 +58,10 @@ Està feta amb **HTML, CSS i JavaScript purs**: sense frameworks ni llibreries i
 
 **Fitxers**
 - **Desament automàtic** al navegador (`localStorage`).
-- Desar i obrir dibuixos en format JSON propi.
+- **Desa a…** (`Ctrl+S`): desar el dibuix en un fitxer JSON propi o crear un **enllaç per compartir**.
+- Obrir dibuixos desats (`Ctrl+O` o arrossegant el fitxer a la pissarra).
 - **Importació bàsica de fitxers `.excalidraw`** (vegeu les limitacions).
-- Exportació a **PNG** (escala 1×, 2× o 3×) i **SVG**, amb o sense fons, en tema clar o fosc, i de tot el dibuix o només de la selecció.
+- Exportació a **PNG** (escala 1×, 2× o 3×) i **SVG**, amb o sense fons, amb o sense la imatge de fons (si n'hi ha), en tema clar o fosc, i de tot el dibuix o només de la selecció.
 - Còpia de la imatge al porta-retalls (si el navegador ho permet).
 
 **Interfície**
@@ -71,7 +90,27 @@ npx serve .
 I obre `http://localhost:8000` (o `http://IP-DEL-TEU-ORDINADOR:8000` des d'un altre dispositiu).
 
 ### Publicar-la
-Com que són fitxers estàtics, es pot publicar tal qual a GitHub Pages, Netlify, Cloudflare Pages o qualsevol servidor web.
+Com que són fitxers estàtics, es pot publicar tal qual a GitHub Pages, Netlify, Cloudflare Pages o qualsevol servidor web. Cal publicar-la si vols compartir dibuixos amb enllaços amb altres persones o dispositius (vegeu l'apartat següent).
+
+---
+
+## Compartir amb un enllaç
+
+A **Desa a… → Enllaç per compartir → Crea l'enllaç** s'obté un enllaç que conté tot el dibuix. Qui l'obri el veurà al seu navegador i en tindrà una còpia per editar (els canvis no se sincronitzen entre persones).
+
+**Com funciona.** No hi ha cap servidor: el dibuix es converteix a JSON, es comprimeix (`CompressionStream`, format *deflate*), es codifica en base64url i s'afegeix a l'adreça després de `#dibuix=`. El fragment de l'adreça (la part després de `#`) no s'envia mai al servidor web, de manera que el dibuix només viatja dins de l'enllaç.
+
+**En obrir un enllaç:**
+- Si el navegador no té cap dibuix, s'obre directament.
+- Si ja n'hi ha un, es demana confirmació abans de substituir-lo. Es pot desfer amb `Ctrl+Z`.
+- Un cop obert, el `#dibuix=…` s'esborra de la barra d'adreces i el dibuix queda desat al navegador com qualsevol altre.
+
+**Coses a tenir en compte:**
+- **L'enllaç apunta a l'adreça on tens la pissarra.** Si l'obres com a fitxer local (`file://…`), l'enllaç només funcionarà en aquest ordinador; el diàleg t'ho avisa. Per compartir-lo amb altres persones, publica la pissarra en un servidor web.
+- **Llargada.** Un dibuix normal ocupa uns pocs centenars o milers de caràcters. Si l'enllaç passa de 8.000 caràcters, el diàleg avisa que algunes aplicacions de missatgeria el podrien tallar. El límit dur és d'uns 2 milions de caràcters.
+- **Imatges.** Ocupen molt d'espai. Si el dibuix en té, es pot triar si s'inclouen («Inclou les imatges»; ve marcat si en total són petites). Si no s'hi inclouen, a l'altre navegador es veuran com a requadres buits.
+- **Privadesa.** El dibuix no està xifrat: qualsevol persona que tingui l'enllaç el pot veure.
+- Al mòbil hi ha també el botó **Comparteix…**, que obre el menú de compartir del sistema.
 
 ---
 
@@ -90,6 +129,8 @@ Com que són fitxers estàtics, es pot publicar tal qual a GitHub Pages, Netlify
 | Text | `T` o `8` (o doble clic al llenç) |
 | Imatge | `9` |
 | Goma | `E` o `0` |
+| Pot de pintura | `B` (amb `Alt`+clic agafa un color) |
+| Comptagotes | `I` |
 | Mantenir l'eina activa | `Q` |
 | Desfer / Refer | `Ctrl+Z` / `Ctrl+Maj+Z` o `Ctrl+Y` |
 | Copiar / Retallar / Enganxar | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` |
@@ -110,7 +151,7 @@ Com que són fitxers estàtics, es pot publicar tal qual a GitHub Pages, Netlify
 | Ajustar a la pantalla | `Maj+1` |
 | Quadrícula | `G` |
 | Tema clar / fosc | `Alt+Maj+D` |
-| Obrir / Desar | `Ctrl+O` / `Ctrl+S` |
+| Obrir / Desa a… (fitxer o enllaç) | `Ctrl+O` / `Ctrl+S` |
 | Exportar imatge | `Ctrl+Maj+E` |
 | Ajuda | `?` |
 
@@ -124,6 +165,17 @@ A macOS, `Ctrl` és `Cmd`.
 
 ### Línies i fletxes corbes
 Selecciona una línia o fletxa: apareixen nanses als extrems i un punt al mig de cada tram. Arrossega el punt del mig per afegir-hi un vèrtex i corbar-la. Fes doble clic sobre un vèrtex per eliminar-lo.
+
+### Fletxes i línies enganxades als elements
+Les fletxes i les línies es poden **enganxar** a rectangles, rombes, el·lipses, textos i imatges, de manera que **segueixen l'element** quan el mous, el redimensiones o el gires. Així es poden fer diagrames encadenats (A → B → C → D…): cada element pot tenir tantes fletxes enganxades com calgui.
+
+- **Enganxar:** comença o acaba la fletxa a sobre d'un element (o molt a prop de la vora). Mentre dibuixes, l'element on s'enganxarà es ressalta, i la punta es col·loca a la vora, amb una petita separació. Si la deixes a prop del centre de l'element, la fletxa hi apunta; si no, apunta cap al punt on l'has deixada.
+- **Fletxes ja dibuixades:** selecciona-la i arrossega un extrem sobre un element per enganxar-l'hi, o fora de l'element per desenganxar-lo. Els extrems enganxats es veuen plens.
+- **Sense enganxar:** mantén premut `Ctrl` (`Cmd` al Mac) mentre dibuixes o arrossegues l'extrem.
+- **Moure la fletxa sola** (sense l'element on està enganxada) la desenganxa d'aquell element. Si selecciones i mous els elements i les fletxes alhora, es mantenen enganxades.
+- **Duplicar o copiar i enganxar** un conjunt d'elements i fletxes manté les unions entre les còpies.
+- **Esborrar un element** deixa les fletxes on són, desenganxades.
+- Una fletxa amb punts intermedis només recol·loca els extrems; els punts del mig es queden on són.
 
 ---
 
@@ -150,6 +202,7 @@ Els scripts són clàssics (no mòduls ES) perquè la pàgina funcioni també ob
 - L'historial guarda instantànies dels elements; les imatges es guarden a part per no inflar-lo.
 - Les formes, els textos i les imatges tenen un camp `angle` (en radians) i giren al voltant del seu centre; les imatges també tenen `flipX` i `flipY`. Les línies, les fletxes i el llapis no guarden angle: quan es giren o s'inverteixen, es transformen directament els seus punts.
 - Cada element té un camp `groupIds` amb els identificadors dels grups als quals pertany, del més intern al més extern (el mateix criteri que l'Excalidraw). Els grups que es queden amb menys de dos elements s'eliminen automàticament.
+- Les fletxes i línies poden tenir `startBinding` i `endBinding`, de la forma `{ id, fx, fy }`: l'element on estan enganxades i un punt de focus relatiu a la seva caixa (de 0 a 1). Cada vegada que l'element canvia, l'extrem es recalcula com el punt on la recta que va del punt veí cap al focus talla la vora de l'element (rectangle, rombe o el·lipse, també girats), menys una separació de 5 px.
 
 ---
 
@@ -203,10 +256,10 @@ L'única cosa externa és la lletra **Caveat** de Google Fonts, per al text "a m
 ## Limitacions conegudes
 
 - En una selecció de diversos elements on n'hi ha algun de girat, el canvi de mida sempre manté les proporcions (si no, els elements girats es deformarien).
-- Les fletxes no s'enganxen a les formes (si mous una forma, la fletxa no la segueix).
+- Les fletxes enganxades fan el camí recte des del punt veí fins a l'element: no esquiven altres elements ni fan angles rectes automàtics (les «fletxes en colze» de l'Excalidraw).
 - El text no s'ajusta automàticament dins d'una forma: el doble clic sobre una forma crea un text centrat, però és un element independent.
-- No hi ha col·laboració en temps real.
-- La importació d'Excalidraw és bàsica: es conserven el gir, els grups i les imatges invertides, però s'ignoren els vincles entre fletxes i formes i els marcs.
+- No hi ha col·laboració en temps real: l'enllaç per compartir envia una còpia del dibuix, no una sessió compartida.
+- La importació d'Excalidraw és bàsica: es conserven el gir, els grups, les imatges invertides i les fletxes enganxades (que apunten al centre de l'element), però s'ignoren els textos lligats a formes i els marcs.
 - El desament automàtic depèn de l'espai del navegador (normalment uns 5 MB). Amb moltes imatges grans pot no caber-hi tot; en aquest cas, l'aplicació avisa i convé desar el dibuix a un fitxer.
 
 ---

@@ -83,6 +83,24 @@
     return v;
   }
 
+  /** Color de fons de la pissarra: el triat (adaptat al tema) o el del tema per defecte. */
+  function canvasBg(theme, color) {
+    const rgba = color && hexToRgba(color);
+    if (!rgba) return THEMES[theme].bg;
+    if (theme !== 'dark') return color;
+    // En tema fosc s'inverteix la lluminositat i es redueix molt la saturació,
+    // perquè els fons pàl·lids es converteixin en grisos foscos amb un toc de color
+    const [h, s, l] = rgbToHsl(rgba[0], rgba[1], rgba[2]);
+    const [r, g, b] = hslToRgb(h, s * 0.32, Math.max(0.04, Math.min(0.96, 0.95 - 0.84 * l)));
+    return '#' + hex2(r) + hex2(g) + hex2(b);
+  }
+  /** Indica si un color de fons és fosc (per triar el color de la quadrícula). */
+  function isDarkColor(c) {
+    const v = hexToRgba(c);
+    if (!v) return false;
+    return (0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]) / 255 < 0.5;
+  }
+
   /* ---------------- Text ---------------- */
   const mctx = document.createElement('canvas').getContext('2d');
   const fontString = (size, family) => size + 'px ' + (FONTS[family] || FONTS.hand);
@@ -286,6 +304,34 @@
     }
     return e;
   }
+  /**
+   * Imatge de fons de la pissarra dins del rectangle rect (coordenades del context).
+   * cover/contain: s'ajusta al rectangle; tile: mosaic lligat al món (view: món → context).
+   */
+  function drawBackgroundImage(ctx, bgi, files, rect, view, onload) {
+    const e = bgi && getImg(bgi.fileId, files, onload);
+    if (!e || !e.ok) return;
+    const img = e.img;
+    const iw = img.naturalWidth || 1, ih = img.naturalHeight || 1;
+    ctx.save();
+    ctx.globalAlpha = (bgi.opacity == null ? 100 : bgi.opacity) / 100;
+    if (bgi.mode === 'tile') {
+      if (!e.pattern || e.patternCtx !== ctx) {
+        e.pattern = ctx.createPattern(img, 'repeat');
+        e.patternCtx = ctx;
+      }
+      e.pattern.setTransform(new DOMMatrix([view.zoom, 0, 0, view.zoom, view.x, view.y]));
+      ctx.fillStyle = e.pattern;
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    } else {
+      const s = bgi.mode === 'contain' ? Math.min(rect.w / iw, rect.h / ih) : Math.max(rect.w / iw, rect.h / ih);
+      const dw = iw * s, dh = ih * s;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, rect.x + (rect.w - dw) / 2, rect.y + (rect.h - dh) / 2, dw, dh);
+    }
+    ctx.restore();
+  }
+
   function preloadImages(els, files) {
     return Promise.all(
       els.filter((el) => el.type === 'image').map((el) => new Promise((res) => {
@@ -430,8 +476,9 @@
     const x = c.getContext('2d');
     x.scale(s, s);
     if (opts.bg) {
-      x.fillStyle = THEMES[theme].bg;
+      x.fillStyle = canvasBg(theme, opts.bgColor);
       x.fillRect(0, 0, w, h);
+      if (opts.bgImage) drawBackgroundImage(x, opts.bgImage, opts.files, { x: 0, y: 0, w, h }, { x: pad - b.x, y: pad - b.y, zoom: 1 });
     }
     x.translate(pad - b.x, pad - b.y);
     for (const el of els) drawElement(x, el, theme, { files: opts.files });
@@ -448,6 +495,22 @@
       t += ' rotate(' + n2((el.angle * 180) / Math.PI) + ' ' + n2(lb.x + lb.w / 2) + ' ' + n2(lb.y + lb.h / 2) + ')';
     }
     return t;
+  }
+
+  function svgBgImage(opts, ox, oy, w, h) {
+    const bgi = opts.bgImage;
+    const src = bgi && opts.files && opts.files[bgi.fileId];
+    if (!src) return '';
+    const op = (bgi.opacity == null ? 100 : bgi.opacity) / 100;
+    const opAttr = op < 1 ? ' opacity="' + op + '"' : '';
+    if (bgi.mode === 'tile') {
+      const iw = n2(bgi.w || 100), ih = n2(bgi.h || 100);
+      return '<defs><pattern id="pbg" patternUnits="userSpaceOnUse" x="' + n2(ox) + '" y="' + n2(oy) + '" width="' + iw + '" height="' + ih + '">' +
+        '<image href="' + esc(src) + '" width="' + iw + '" height="' + ih + '"/></pattern></defs>' +
+        '<rect width="100%" height="100%" fill="url(#pbg)"' + opAttr + '/>';
+    }
+    return '<image href="' + esc(src) + '" x="0" y="0" width="' + w + '" height="' + h + '" preserveAspectRatio="xMidYMid ' +
+      (bgi.mode === 'contain' ? 'meet' : 'slice') + '"' + opAttr + '/>';
   }
 
   function toSVG(els, opts) {
@@ -501,15 +564,15 @@
     return (
       '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' +
       '<!-- Creat amb Pissarra -->' + style +
-      (opts.bg ? '<rect width="100%" height="100%" fill="' + THEMES[theme].bg + '"/>' : '') +
+      (opts.bg ? '<rect width="100%" height="100%" fill="' + canvasBg(theme, opts.bgColor) + '"/>' + svgBgImage(opts, ox, oy, w, h) : '') +
       body + '</svg>'
     );
   }
 
   global.PissarraRender = {
     LH, FONTS, THEMES,
-    themeColor, measureText, clearMetrics, baselineOffset,
+    themeColor, canvasBg, isDarkColor, measureText, clearMetrics, baselineOffset,
     getOps, getBounds, rawBounds, elCenter, sceneBounds, linearSamples, freedrawWidth,
-    drawElement, preloadImages, renderToCanvas, toSVG,
+    drawElement, drawBackgroundImage, preloadImages, renderToCanvas, toSVG,
   };
 })(window);
