@@ -6,6 +6,11 @@
   <meta name="theme-color" content="#121316">
   <meta name="description" content="Pissarra: una pissarra blanca virtual per fer esbossos a mà alçada.">
   <title>Pissarra</title>
+  <link rel="icon" href="favicon.ico" sizes="48x48">
+  <link rel="icon" href="icon/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="icon/favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="apple-touch-icon" href="icon/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
   <!-- Lletra "a mà" opcional: si no hi ha connexió, s'utilitza una lletra del sistema -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -51,6 +56,18 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16M4 15h16M9 4v16M15 4v16"/></svg>
             <span>Quadrícula</span><kbd>G</kbd>
           </button>
+          <div class="menu-setting" role="group" aria-labelledby="tbpos-label">
+            <div class="menu-setting-head">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9h17M6.5 6.8h.01M9 6.8h.01"/></svg>
+              <span id="tbpos-label">Barra d'eines</span>
+            </div>
+            <div class="nudge-row">
+              <div class="seg seg-text" id="tbpos-seg">
+                <button type="button" data-tbpos="top" aria-pressed="false">A dalt</button>
+                <button type="button" data-tbpos="bottom" aria-pressed="false">A baix</button>
+              </div>
+            </div>
+          </div>
           <div class="menu-setting" role="group" aria-labelledby="nudge-label">
             <div class="menu-setting-head">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M9.5 5.5 12 3l2.5 2.5M9.5 18.5 12 21l2.5-2.5M5.5 9.5 3 12l2.5 2.5M18.5 9.5 21 12l-2.5 2.5"/></svg>
@@ -169,6 +186,10 @@
         <button type="button" class="tool-btn" data-tool="text" aria-pressed="false" title="Text — T o 8">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7V4.5h14V7M12 4.5v15M9 19.5h6"/></svg>
           <span class="kbd">8</span>
+        </button>
+        <button type="button" class="tool-btn" data-tool="note" aria-pressed="false" title="Pòsit (nota adhesiva) — N">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 5.5a1 1 0 0 1 1-1h13a1 1 0 0 1 1 1V14l-5.5 5.5H5.5a1 1 0 0 1-1-1z"/><path d="M19.5 14H15a1 1 0 0 0-1 1v4.5"/><path d="M8 9h8M8 12.5h5"/></svg>
+          <span class="kbd">N</span>
         </button>
         <button type="button" class="tool-btn" data-tool="image" aria-pressed="false" title="Insereix una imatge — 9">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 16l-5-5L5 19.5"/></svg>
@@ -317,6 +338,15 @@
         </div>
       </section>
 
+      <section class="prop" data-prop="shadow">
+        <h3>Ombra</h3>
+        <div class="seg" data-key="shadow">
+          <button type="button" data-value="0" title="Sense ombra"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="13" height="13" rx="2"/></svg></button>
+          <button type="button" data-value="1" title="Ombra suau"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="12.5" height="12.5" rx="2"/><path d="M19 8v10a1 1 0 0 1-1 1H8" opacity=".55"/></svg></button>
+          <button type="button" data-value="2" title="Ombra marcada"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M16 7.5h4v12.5H7.5V16H16z" fill="currentColor" stroke="none" opacity=".5"/></svg></button>
+        </div>
+      </section>
+
       <section class="prop" data-prop="opacity">
         <h3>Opacitat <output id="opacity-out">100</output></h3>
         <input type="range" min="0" max="100" step="5" value="100" data-key="opacity" aria-label="Opacitat">
@@ -359,11 +389,32 @@
         <div class="seg">
           <button type="button" data-action="group" title="Agrupa — Ctrl+G"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7V4.5a1 1 0 0 1 1-1H7M17 3.5h2.5a1 1 0 0 1 1 1V7M20.5 17v2.5a1 1 0 0 1-1 1H17M7 20.5H4.5a1 1 0 0 1-1-1V17"/><rect x="7" y="7" width="6" height="5" rx="1"/><rect x="11" y="12" width="6" height="5" rx="1"/></svg></button>
           <button type="button" data-action="ungroup" title="Desagrupa — Ctrl+Maj+G"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7V4.5a1 1 0 0 1 1-1H7M17 3.5h2.5a1 1 0 0 1 1 1V7M20.5 17v2.5a1 1 0 0 1-1 1H17M7 20.5H4.5a1 1 0 0 1-1-1V17" stroke-dasharray="2 2.5"/><rect x="6" y="6" width="6" height="5" rx="1"/><rect x="12" y="13" width="6" height="5" rx="1"/></svg></button>
+          <button type="button" data-action="link" title="Enllaç — Ctrl+K"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg></button>
+          <button type="button" data-action="export-selection" title="Exporta com a imatge — Ctrl+Maj+E · Copia com a PNG — Alt+Maj+C"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 3.5H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10"/><path d="M4 16l4.5-4.5 4 4 2-2L20 18"/><path d="M17.5 2.5v6M14.8 5.8l2.7 2.7 2.7-2.7"/></svg></button>
           <button type="button" data-action="duplicate" title="Duplica — Ctrl+D"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button>
           <button type="button" data-action="delete" title="Elimina — Supr" class="danger"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button>
         </div>
       </section>
     </aside>
+
+    <!-- Enllaç de l'element seleccionat -->
+    <div id="link-bar" class="island link-bar" hidden>
+      <div class="lb-view" id="lb-view">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg>
+        <a id="lb-url" href="#" target="_blank" rel="noopener noreferrer" title="Obre l'enllaç en una pestanya nova"></a>
+        <button type="button" class="icon-btn" id="lb-edit" title="Edita l'enllaç — Ctrl+K" aria-label="Edita l'enllaç"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5h4l10-10a2.8 2.8 0 0 0-4-4l-10 10z"/><path d="M13.5 6.5l4 4"/></svg></button>
+        <button type="button" class="icon-btn" id="lb-remove" title="Treu l'enllaç" aria-label="Treu l'enllaç"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l1.2-1.2M19.4 10.6l.1-.1a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/><path d="M4 4l16 16"/></svg></button>
+      </div>
+      <form class="lb-form" id="lb-form" hidden>
+        <input type="text" id="lb-input" inputmode="url" spellcheck="false" autocomplete="off" autocapitalize="off" enterkeyhint="done" placeholder="https://…" aria-label="Adreça de l'enllaç">
+        <button type="submit" class="btn primary" id="lb-save">Desa</button>
+      </form>
+      <p class="lb-err" id="lb-err" role="status" hidden></p>
+    </div>
+    <div id="link-tip" class="link-tip" role="tooltip" hidden></div>
+
+    <!-- Menú contextual (botó dret o toc llarg); el contingut el genera app.js -->
+    <div id="ctx-menu" class="island menu ctx-menu" role="menu" aria-label="Accions" tabindex="-1" hidden></div>
 
     <!-- Barra inferior -->
     <footer class="bottom-bar">
@@ -421,7 +472,7 @@
         <label class="check"><input type="checkbox" id="exp-bg" checked> Amb fons</label>
         <label class="check" id="exp-bgimg-row" title="Inclou la imatge de fons de la pissarra (cal «Amb fons»)"><input type="checkbox" id="exp-bgimg" checked> Imatge de fons</label>
         <label class="check"><input type="checkbox" id="exp-dark"> Tema fosc</label>
-        <label class="check"><input type="checkbox" id="exp-sel"> Només la selecció</label>
+        <label class="check"><input type="checkbox" id="exp-sel"> <span id="exp-sel-label">Només la selecció</span></label>
         <div class="seg seg-text" id="exp-scale" role="group" aria-label="Escala">
           <button type="button" data-scale="1">1×</button>
           <button type="button" data-scale="2" class="active">2×</button>
@@ -450,6 +501,14 @@
             Fitxer
           </h3>
           <p>Desa el dibuix en un fitxer <code>.json</code> al teu dispositiu. El podràs tornar a obrir amb «Obre…» o arrossegant-lo a la pissarra.</p>
+          <div class="save-name">
+            <label for="save-name">Nom del fitxer</label>
+            <div class="save-name-row">
+              <input type="text" id="save-name" maxlength="120" spellcheck="false" autocomplete="off" autocapitalize="off" enterkeyhint="done" aria-describedby="save-name-hint">
+              <span class="save-ext" aria-hidden="true">.json</span>
+            </div>
+            <p class="save-name-hint" id="save-name-hint" role="status"></p>
+          </div>
           <button type="button" class="btn" id="save-file-btn">Desa el fitxer</button>
         </section>
         <section class="save-card" aria-labelledby="share-title">
@@ -494,6 +553,7 @@
             <dt>Línia</dt><dd><kbd>L</kbd> <kbd>6</kbd></dd>
             <dt>Llapis</dt><dd><kbd>P</kbd> <kbd>7</kbd></dd>
             <dt>Text</dt><dd><kbd>T</kbd> <kbd>8</kbd></dd>
+            <dt>Pòsit</dt><dd><kbd>N</kbd></dd>
             <dt>Imatge</dt><dd><kbd>9</kbd></dd>
             <dt>Goma</dt><dd><kbd>E</kbd> <kbd>0</kbd></dd>
             <dt>Pot de pintura</dt><dd><kbd>B</kbd></dd>
@@ -506,6 +566,9 @@
           <dl>
             <dt>Desfés / Refés</dt><dd><kbd>Ctrl</kbd>+<kbd>Z</kbd> · <kbd>Ctrl</kbd>+<kbd>Maj</kbd>+<kbd>Z</kbd></dd>
             <dt>Copia / Retalla / Enganxa</dt><dd><kbd>Ctrl</kbd>+<kbd>C</kbd> <kbd>X</kbd> <kbd>V</kbd></dd>
+            <dt>Menú d'accions</dt><dd>Clic dret · toc llarg · <kbd>Maj</kbd>+<kbd>F10</kbd></dd>
+            <dt>Afegeix o edita un enllaç</dt><dd><kbd>Ctrl</kbd>+<kbd>K</kbd></dd>
+            <dt>Copia la selecció com a PNG</dt><dd><kbd>Alt</kbd>+<kbd>Maj</kbd>+<kbd>C</kbd></dd>
             <dt>Duplica</dt><dd><kbd>Ctrl</kbd>+<kbd>D</kbd> o <kbd>Alt</kbd>+arrossega</dd>
             <dt>Selecciona-ho tot</dt><dd><kbd>Ctrl</kbd>+<kbd>A</kbd></dd>
             <dt>Elimina</dt><dd><kbd>Supr</kbd></dd>

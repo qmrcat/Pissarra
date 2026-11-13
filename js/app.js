@@ -35,24 +35,29 @@
   const MIN_ZOOM = 0.1;
   const MAX_ZOOM = 30;
   const LH = R.LH;
-  const TYPES = ['rectangle', 'ellipse', 'diamond', 'line', 'arrow', 'freedraw', 'text', 'image'];
+  const TYPES = ['rectangle', 'ellipse', 'diamond', 'line', 'arrow', 'freedraw', 'text', 'note', 'image'];
   const SHAPES = new Set(['rectangle', 'ellipse', 'diamond']);
+  /** Elements amb fons (el pot de pintura i el comptagotes hi poden actuar). */
+  const FILLED = new Set(['rectangle', 'ellipse', 'diamond', 'note']);
   const LINEAR = new Set(['line', 'arrow']);
-  const CREATE_TOOLS = new Set(['rectangle', 'ellipse', 'diamond', 'line', 'arrow', 'freedraw', 'text']);
+  const CREATE_TOOLS = new Set(['rectangle', 'ellipse', 'diamond', 'line', 'arrow', 'freedraw', 'text', 'note']);
+  const NOTE_SIZE = 200; // mida d'un pòsit nou creat amb un clic
+  const NOTE_MIN = 40;
 
   /** A quins tipus d'element s'aplica cada propietat. */
   const PROP_TYPES = {
-    stroke: ['rectangle', 'ellipse', 'diamond', 'line', 'arrow', 'freedraw', 'text'],
-    fill: ['rectangle', 'ellipse', 'diamond'],
+    stroke: ['rectangle', 'ellipse', 'diamond', 'line', 'arrow', 'freedraw', 'text', 'note'],
+    fill: ['rectangle', 'ellipse', 'diamond', 'note'],
     fillStyle: ['rectangle', 'ellipse', 'diamond'],
     strokeWidth: ['rectangle', 'ellipse', 'diamond', 'line', 'arrow', 'freedraw'],
     strokeStyle: ['rectangle', 'ellipse', 'diamond', 'line', 'arrow'],
     roughness: ['rectangle', 'ellipse', 'diamond', 'line', 'arrow'],
     roundness: ['rectangle'],
     arrowheads: ['line', 'arrow'],
-    fontSize: ['text'],
-    fontFamily: ['text'],
-    textAlign: ['text'],
+    fontSize: ['text', 'note'],
+    fontFamily: ['text', 'note'],
+    textAlign: ['text', 'note'],
+    shadow: TYPES,
     opacity: TYPES,
   };
   const appliesTo = (key, type) => (PROP_TYPES[key] || []).includes(type);
@@ -87,6 +92,8 @@
     grid: false,
     nudge: 1, // píxels que es mou la selecció amb les fletxes
     background: null, // color de fons de la pissarra (null: el del tema)
+    fileName: null, // nom (sense extensió) amb què s'ha desat o obert el dibuix
+    toolbarPos: null, // posició de la barra d'eines: 'top', 'bottom' o null (segons la pantalla)
     recentColors: [], // últims colors triats amb el selector
     bgImage: null, // imatge de fons de la pissarra: { fileId, mode, opacity, w, h }
     view: { x: 0, y: 0, zoom: 1 },
@@ -95,6 +102,9 @@
       strokeStyle: 'solid', roughness: 1, opacity: 100, roundness: 'round',
       arrowheads: 'end', fontSize: 20, fontFamily: 'hand', textAlign: 'left',
       lastStroke: '#1e1e1e',
+      shadow: 0, // ombra dels elements nous: 0 cap, 1 suau, 2 marcada
+      noteFill: '#ffec99', // color dels pòsits nous
+      noteShadow: 1, // els pòsits tenen ombra per defecte
       bucketTarget: 'fill', // el pot de pintura pinta el fons ('fill') o el traç ('stroke')
     },
   };
@@ -129,7 +139,24 @@
       groupIds: currentGroupPath(),
     };
     if (type === 'text') Object.assign(el, { text: '', fontSize: st.fontSize, fontFamily: st.fontFamily, textAlign: st.textAlign });
+    if (type === 'note') {
+      Object.assign(el, {
+        text: '', fontSize: st.fontSize, fontFamily: st.fontFamily, textAlign: st.textAlign,
+        fill: st.noteFill && st.noteFill !== 'transparent' ? st.noteFill : R.NOTE_FILL, fillStyle: 'solid',
+      });
+      if (st.noteShadow) el.shadow = st.noteShadow;
+    } else if (st.shadow) el.shadow = st.shadow;
     return Object.assign(el, extra || {});
+  }
+
+  /** Fa créixer el pòsit (cap avall) si el text no hi cap. Retorna si ha canviat. */
+  function fitNote(el) {
+    if (el.type !== 'note') return false;
+    const need = Math.max(NOTE_MIN, R.noteMinHeight(el));
+    if (el.h >= need - 0.5) return false;
+    el.h = need;
+    bump(el);
+    return true;
   }
 
   function measureTextEl(el) {
@@ -170,13 +197,21 @@
     delete out._c;
     delete out._editing;
     out.x = +out.x; out.y = +out.y; out.w = +out.w || 0; out.h = +out.h || 0;
-    if (out.type === 'text') {
+    if (out.type === 'text' || out.type === 'note') {
       out.text = String(out.text == null ? '' : out.text);
       out.fontSize = clamp(+out.fontSize || 20, 4, 1000);
       if (!R.FONTS[out.fontFamily]) out.fontFamily = 'hand';
       if (!['left', 'center', 'right'].includes(out.textAlign)) out.textAlign = 'left';
-      measureTextEl(out);
+      if (out.type === 'text') measureTextEl(out);
     }
+    if (out.type === 'note') {
+      out.w = Math.max(NOTE_MIN, out.w || NOTE_SIZE);
+      out.h = Math.max(NOTE_MIN, out.h || NOTE_SIZE);
+      if (!el.fill || out.fill === 'transparent') out.fill = R.NOTE_FILL;
+      out.fillStyle = 'solid';
+    }
+    out.shadow = [1, 2].includes(+out.shadow) ? +out.shadow : 0;
+    if (!out.shadow) delete out.shadow;
     if (LINEAR.has(out.type) || out.type === 'freedraw') {
       out.points = out.points.filter((p) => Array.isArray(p) && isFinite(p[0]) && isFinite(p[1])).map((p) => [+p[0], +p[1]]);
       if (LINEAR.has(out.type) && out.points.length < 2) out.points.push([out.points[0][0] + 1, out.points[0][1]]);
@@ -185,8 +220,8 @@
     out.groupIds = Array.isArray(out.groupIds) ? out.groupIds.filter((g) => typeof g === 'string' && g) : [];
     if ((LINEAR.has(out.type) || out.type === 'freedraw') && out.angle) bakeAngle(out);
     if (out.type === 'image') { out.flipX = !!out.flipX; out.flipY = !!out.flipY; }
-    if (out.stroke === 'transparent' && !SHAPES.has(out.type)) out.stroke = '#1e1e1e';
     else { delete out.flipX; delete out.flipY; }
+    if (out.stroke === 'transparent' && !SHAPES.has(out.type)) out.stroke = '#1e1e1e';
     for (const k of ['startBinding', 'endBinding']) {
       const b = out[k];
       if (LINEAR.has(out.type) && b && typeof b.id === 'string' && isFinite(b.fx) && isFinite(b.fy)) {
@@ -194,6 +229,10 @@
       } else delete out[k];
     }
     if (LINEAR.has(out.type) && !out.arrowheads) out.arrowheads = out.type === 'arrow' ? 'end' : 'none';
+    if (out.link != null) {
+      const u = sanitizeUrl(out.link);
+      if (u) out.link = u; else delete out.link;
+    }
     return out;
   }
 
@@ -222,7 +261,7 @@
       v: 1,
       elements: serialize(S.elements),
       files: sceneFiles(),
-      app: { theme: S.theme, grid: S.grid, view: S.view, style: S.style, locked: S.locked, nudge: S.nudge, background: S.background, recentColors: S.recentColors, bgImage: S.bgImage },
+      app: { theme: S.theme, grid: S.grid, view: S.view, style: S.style, locked: S.locked, nudge: S.nudge, background: S.background, recentColors: S.recentColors, bgImage: S.bgImage, fileName: S.fileName, toolbarPos: S.toolbarPos },
     };
     if (storage.set(JSON.stringify(data))) return;
     // Si no hi cap (imatges grans), es desa almenys el dibuix sense imatges
@@ -253,6 +292,8 @@
         S.view = { x: +a.view.x, y: +a.view.y, zoom: clamp(+a.view.zoom, MIN_ZOOM, MAX_ZOOM) };
       }
       if (a.style) for (const k in S.style) if (a.style[k] !== undefined) S.style[k] = a.style[k];
+      if (typeof a.fileName === 'string') S.fileName = cleanFileName(a.fileName) || null;
+      if (a.toolbarPos === 'top' || a.toolbarPos === 'bottom') S.toolbarPos = a.toolbarPos;
     } catch (e) {
       console.warn('Pissarra: no s\'ha pogut llegir el dibuix desat', e);
     }
@@ -265,7 +306,7 @@
    * recta que va del punt veí cap al focus talla la vora de l'element,
    * de manera que en moure, girar o redimensionar l'element, el segueix.
    * ========================================================= */
-  const BINDABLE = new Set(['rectangle', 'ellipse', 'diamond', 'text', 'image']);
+  const BINDABLE = new Set(['rectangle', 'ellipse', 'diamond', 'text', 'note', 'image']);
   const BIND_GAP = 5; // separació entre la punta i la vora
   let bindHintId = null;
   const noBind = (e) => !!(e && (e.ctrlKey || e.metaKey)); // Ctrl/Cmd: no enganxa
@@ -586,6 +627,7 @@
   const snapshot = () => JSON.stringify(S.elements, stripPrivate);
 
   function commit() {
+    for (const el of S.elements) fitNote(el);
     cleanGroups();
     cleanBindings();
     refreshBindings();
@@ -663,8 +705,9 @@
     const b = R.sceneBounds(els);
     const mobile = W <= 640;
     const padX = mobile ? 24 : 80;
-    const padTop = mobile ? 70 : 90;
-    const padBottom = mobile ? 150 : 80;
+    const edges = uiEdges();
+    const padTop = edges.top + (mobile ? 16 : 30);
+    const padBottom = H - edges.bottom + (mobile ? 16 : 24);
     const z = clamp(Math.min((W - padX * 2) / Math.max(b.w, 1), (H - padTop - padBottom) / Math.max(b.h, 1)), MIN_ZOOM, 2);
     S.view.zoom = z;
     S.view.x = W / 2 - (b.x + b.w / 2) * z;
@@ -716,7 +759,9 @@
       R.drawElement(ctx, el, S.theme, { files, faded: erasing.has(el.id), onImageLoad: requestRender, ghost: true, zoom: S.view.zoom });
     }
     ctx.restore();
+    drawLinkBadges(th);
     drawOverlay(th);
+    syncLinkBar();
     $('#hint').classList.toggle('show', S.elements.length === 0 && !editing);
   }
 
@@ -1191,8 +1236,8 @@
   canvas.addEventListener('pointerleave', () => {
     pointerOverCanvas = false;
     if (hoverId || bindHintId) { hoverId = null; bindHintId = null; requestRender(); }
+    setLinkHover(null);
   });
-  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   // Evita els esdeveniments de ratolí simulats després d'un toc (treurien el focus de l'editor de text)
   canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
   canvas.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
@@ -1204,6 +1249,8 @@
     const [sx, sy] = evPos(e);
     pointers.set(e.pointerId, { x: sx, y: sy });
     try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* res */ }
+    closeCtxMenu();
+    if (pointers.size === 1 && e.button === 0 && !editing) armLongPress(e); else clearLongPress();
     if (editing) {
       // Un toc fora de l'editor només confirma el text
       commitText();
@@ -1216,6 +1263,12 @@
     const [wx, wy] = toWorld(sx, sy);
     // Comptagotes del selector de color: el clic agafa el color i no fa res més
     if (cpEyedrop && e.button === 0) { eyedropAt(wx, wy, 'picker'); return; }
+    if (linkEditId) applyLink(true);
+    // Botonet d'enllaç: l'obre (amb l'eina de selecció)
+    if (e.button === 0 && !spaceDown && S.tool === 'selection') {
+      const badge = linkBadgeAt(sx, sy);
+      if (badge) { clearLongPress(); setLinkHover(null); openLink(badge.el.link); return; }
+    }
     if (e.button === 1 || (e.button === 0 && spaceDown) || S.tool === 'hand') {
       drag = { type: 'pan', sx, sy, vx: S.view.x, vy: S.view.y };
       setCursor('grabbing');
@@ -1246,7 +1299,7 @@
         break;
       case 'text': {
         const hit = hitTest(wx, wy);
-        if (hit && hit.type === 'text') startEditText(hit, false);
+        if (hit && (hit.type === 'text' || hit.type === 'note')) startEditText(hit, false);
         else createTextAt(wx, wy);
         drag = { type: 'focus' };
         break;
@@ -1301,7 +1354,7 @@
         setSelection(unitIdsFor(hit));
         return;
       }
-      if (hit && hit.type === 'text') { startEditText(hit, false); drag = { type: 'focus' }; return; }
+      if (hit && (hit.type === 'text' || hit.type === 'note')) { startEditText(hit, false); drag = { type: 'focus' }; return; }
       // Doble clic sobre una forma (o al seu interior, encara que no tingui fons): text centrat
       const shape = hit && SHAPES.has(hit.type) ? hit
         : !hit ? S.elements.slice().reverse().find((el) => SHAPES.has(el.type) && insideShape(el, wx, wy)) : null;
@@ -1342,6 +1395,7 @@
     const rect = canvas.getBoundingClientRect();
     const [sx, sy] = evPos(e, rect);
     if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: sx, y: sy });
+    moveLongPress(e);
     const [wx, wy] = toWorld(sx, sy);
     lastWorldPointer = [wx, wy];
     if (!drag) {
@@ -1370,6 +1424,7 @@
 
   function onPointerUp(e) {
     pointers.delete(e.pointerId);
+    clearLongPress();
     if (!drag) {
       if (editing) ta.focus({ preventScroll: true });
       return;
@@ -1437,7 +1492,10 @@
       if (id !== bindHintId) { bindHintId = id; requestRender(); }
       return setCursor(baseCursor());
     }
-    if (S.tool !== 'selection') return setCursor(baseCursor());
+    if (S.tool !== 'selection') { setLinkHover(null); return setCursor(baseCursor()); }
+    const badge = linkBadgeAt(sx, sy);
+    setLinkHover(badge);
+    if (badge) return setCursor('pointer');
     const lin = singleLinear();
     if (lin && linearHandleAt(lin, sx, sy)) return setCursor('pointer');
     const h = handleAt(sx, sy);
@@ -1545,6 +1603,21 @@
 
   function finishCreate(d) {
     const el = d.el;
+    if (el.type === 'note') {
+      // Amb un clic, un pòsit de mida estàndard centrat al punt; arrossegant, la mida triada
+      if (Math.max(el.w, el.h) * S.view.zoom < 8) {
+        el.w = el.h = NOTE_SIZE;
+        el.x = snapV(d.x0 - NOTE_SIZE / 2);
+        el.y = snapV(d.y0 - NOTE_SIZE / 2);
+      } else {
+        el.w = Math.max(NOTE_MIN, el.w);
+        el.h = Math.max(NOTE_MIN, el.h);
+      }
+      bump(el);
+      if (!S.locked) setTool('selection');
+      startEditText(el, true);
+      return;
+    }
     const b = R.getBounds(el);
     if (Math.max(b.w, b.h) * S.view.zoom < 4) {
       removeIds([el.id]);
@@ -1936,7 +2009,7 @@
     if (editing) commitText();
     S.selected = new Set();
     updateProps();
-    editing = { el, isNew, ref: textRef(el) };
+    editing = el.type === 'note' ? { el, isNew, note: true, h0: el.h } : { el, isNew, ref: textRef(el) };
     el._editing = true;
     ta.value = el.text || '';
     ta.hidden = false;
@@ -1960,10 +2033,44 @@
     el.y = ref[1] - dy - el.h / 2;
   }
 
-  function positionEditor() {
-    if (!editing) return;
+  /** Editor d'un pòsit: ocupa tot el pòsit, amb el marge interior, i el text salta de línia. */
+  function positionNoteEditor() {
     const el = editing.el;
     const z = S.view.zoom;
+    const need = Math.max(editing.h0, R.noteMinHeight(el, ta.value));
+    if (Math.abs(need - el.h) > 0.5) {
+      el.h = need;
+      bump(el);
+      refreshBindings(new Set([el.id]));
+    }
+    const [sx, sy] = toScreen(el.x, el.y);
+    const s = ta.style;
+    s.left = sx + 'px';
+    s.top = sy + 'px';
+    s.width = el.w * z + 'px';
+    s.height = el.h * z + 'px';
+    s.padding = R.notePad(el) * z + 'px';
+    s.whiteSpace = 'pre-wrap';
+    s.overflowWrap = 'anywhere';
+    s.font = el.fontSize * z + 'px ' + R.FONTS[el.fontFamily];
+    s.lineHeight = String(LH);
+    s.color = R.themeColor(el.stroke, S.theme);
+    s.textAlign = el.textAlign;
+    s.opacity = String((el.opacity == null ? 100 : el.opacity) / 100);
+    s.marginLeft = '0px';
+    s.transformOrigin = '50% 50%';
+    s.transform = el.angle ? 'rotate(' + el.angle + 'rad)' : '';
+    requestRender();
+  }
+
+  function positionEditor() {
+    if (!editing) return;
+    if (editing.note) { positionNoteEditor(); return; }
+    const el = editing.el;
+    const z = S.view.zoom;
+    ta.style.padding = '0px';
+    ta.style.whiteSpace = '';
+    ta.style.overflowWrap = '';
     const m = R.measureText(ta.value, el.fontSize, el.fontFamily);
     el.w = m.w;
     el.h = m.h;
@@ -1988,11 +2095,22 @@
   function commitText() {
     if (!editing) return;
     const { el, isNew } = editing;
+    const isNote = !!editing.note;
     editing = null;
     el._editing = false;
     ta.hidden = true;
     if (document.activeElement === ta) ta.blur();
     const text = ta.value.replace(/\s+$/, '');
+    if (isNote) {
+      // Un pòsit buit es manté (és una nota per omplir més tard)
+      if (el.text !== text) el.text = text;
+      bump(el);
+      fitNote(el);
+      if (!S.locked && (S.tool === 'note' || S.tool === 'text')) setTool('selection');
+      setSelection([el.id]);
+      commit();
+      return;
+    }
     if (!text.trim()) {
       removeIds([el.id]);
       if (!isNew) commit();
@@ -2238,7 +2356,7 @@
     const sel = selectedEls();
     if (sel.length) return new Set(sel.map((e) => e.type));
     if (CREATE_TOOLS.has(S.tool)) return new Set([S.tool]);
-    if (editing) return new Set(['text']);
+    if (editing) return new Set([editing.el.type]);
     return new Set();
   }
 
@@ -2250,6 +2368,10 @@
     const el = target.find((e) => appliesTo(key, e.type) && (key !== 'stroke' || e.stroke !== 'transparent' || SHAPES.has(e.type)));
     if (el) return el[key];
     if (key === 'stroke' && S.style.stroke === 'transparent' && !contextHasShape()) return S.style.lastStroke || '#1e1e1e';
+    if (S.tool === 'note' && !bucketMode()) {
+      if (key === 'fill') return S.style.noteFill;
+      if (key === 'shadow') return S.style.noteShadow;
+    }
     return S.style[key];
   }
 
@@ -2282,9 +2404,14 @@
       const units = selectionUnits();
       $('[data-action="group"]', propsEl).disabled = units.length < 2;
       $('[data-action="ungroup"]', propsEl).disabled = !sel.some((el) => targetGroup(el));
+      const lk = $('[data-action="link"]', propsEl);
+      lk.disabled = sel.length !== 1;
+      lk.title = sel.length === 1 && sel[0].link ? 'Edita l\'enllaç — Ctrl+K' : sel.length === 1 ? 'Afegeix un enllaç — Ctrl+K' : 'Enllaç: selecciona un sol element';
     }
     // El traç transparent només té sentit per a rectangles, rombes i el·lipses
     $('.swatches[data-key="stroke"] [data-value="transparent"]', propsEl).disabled = !contextHasShape();
+    // Un pòsit sempre té color de fons
+    $('.swatches[data-key="fill"] [data-value="transparent"]', propsEl).disabled = !bucket && types.size > 0 && Array.from(types).every((t) => t === 'note');
 
     for (const group of $$('[data-key]', propsEl)) {
       const key = group.dataset.key;
@@ -2318,15 +2445,24 @@
 
   function setProp(key, value, doCommit) {
     if (doCommit === undefined) doCommit = true;
-    if (key !== 'arrowheads' || !singleLineSelected()) S.style[key] = value;
-    if (key === 'stroke' && value !== 'transparent') S.style.lastStroke = value;
     const targets = editing ? [editing.el] : selectedEls();
+    const ctxTypes = contextTypes();
+    const onlyNotes = ctxTypes.size > 0 && Array.from(ctxTypes).every((t) => t === 'note');
+    // Els pòsits tenen el seu color i la seva ombra per defecte
+    if ((key === 'fill' || key === 'shadow') && ctxTypes.has('note')) {
+      if (key === 'fill' && value !== 'transparent') S.style.noteFill = value;
+      if (key === 'shadow') S.style.noteShadow = value;
+    }
+    if ((key !== 'arrowheads' || !singleLineSelected()) && !((key === 'fill' || key === 'shadow') && onlyNotes)) S.style[key] = value;
+    if (key === 'stroke' && value !== 'transparent') S.style.lastStroke = value;
     for (const el of targets) {
       if (!appliesTo(key, el.type)) continue;
       if (key === 'stroke' && value === 'transparent' && !SHAPES.has(el.type)) continue;
+      if (key === 'fill' && value === 'transparent' && el.type === 'note') continue;
       el[key] = value;
       if (editing && el === editing.el && key === 'textAlign') editing.ref = textRef(el);
       if (el.type === 'text' && (key === 'fontSize' || key === 'fontFamily') && !el._editing) measureTextEl(el);
+      if (key === 'shadow' && !value) delete el.shadow;
       bump(el);
     }
     if (editing) { positionEditor(); ta.focus({ preventScroll: true }); }
@@ -2685,7 +2821,7 @@
     const tol = (touchy() ? 12 : 6) / S.view.zoom;
     for (let i = S.elements.length - 1; i >= 0; i--) {
       const el = S.elements[i];
-      if (hitElement(el, wx, wy, tol) || (SHAPES.has(el.type) && insideShapeGeom(el, wx, wy))) return el;
+      if (hitElement(el, wx, wy, tol) || (FILLED.has(el.type) && insideShapeGeom(el, wx, wy))) return el;
     }
     return null;
   }
@@ -2696,7 +2832,15 @@
     const tgt = S.style.bucketTarget;
     if (el.type === 'image') { drag.reason = drag.reason || 'image'; return; }
     if (tgt === 'fill') {
-      if (!SHAPES.has(el.type)) { drag.reason = drag.reason || 'nofill'; return; }
+      if (!FILLED.has(el.type)) { drag.reason = drag.reason || 'nofill'; return; }
+      if (el.type === 'note') {
+        if (S.style.fill === 'transparent') { drag.reason = drag.reason || 'notefill'; return; }
+        if (el.fill === S.style.fill) { drag.reason = drag.reason || 'same'; return; }
+        drag.origs.set(el.id, { fill: el.fill });
+        el.fill = S.style.fill;
+        bump(el);
+        return;
+      }
       if (el.fill === S.style.fill && (el.fillStyle === S.style.fillStyle || S.style.fill === 'transparent')) { drag.reason = drag.reason || 'same'; return; }
       drag.origs.set(el.id, { fill: el.fill, fillStyle: el.fillStyle });
       el.fill = S.style.fill;
@@ -2725,6 +2869,7 @@
     if (d.origs.size) { commit(); return; }
     const msg = {
       nofill: 'Les línies, el llapis i el text no tenen fons. Tria «Traç» a «Pinta» per canviar-ne el color.',
+      notefill: 'Els pòsits sempre tenen color: tria un color de fons per pintar-los.',
       notransparent: 'El traç transparent només es pot posar a les formes.',
       image: 'Les imatges no es poden pintar.',
     }[d.reason];
@@ -2801,7 +2946,7 @@
       } else {
         const hasFill = el.fill && el.fill !== 'transparent';
         const hasStroke = el.stroke && el.stroke !== 'transparent';
-        if (SHAPES.has(el.type) && hasFill && insideShapeGeom(el, wx, wy)) return { color: el.fill, kind: 'fill', from: 'fons' };
+        if (FILLED.has(el.type) && hasFill && insideShapeGeom(el, wx, wy)) return { color: el.fill, kind: 'fill', from: 'fons' };
         if (hasStroke) return { color: el.stroke, kind: 'stroke', from: 'traç' };
         if (hasFill) return { color: el.fill, kind: 'fill', from: 'fons' };
       }
@@ -2915,6 +3060,8 @@
       case 'zoom-reset': zoomTo(1); break;
       case 'front': case 'back': case 'forward': case 'backward': reorder(a); break;
       case 'duplicate': duplicateSelected(); break;
+      case 'export-selection': openExport(); break;
+      case 'link': startLinkEdit(); break;
       case 'group': groupSelected(); break;
       case 'ungroup': ungroupSelected(); break;
       case 'rotate-left': rotateSelectedBy(-Math.PI / 2); break;
@@ -2968,6 +3115,7 @@
     if (editing) commitText();
     S.elements = [];
     S.selected.clear();
+    setFileName(null); // un llenç net és un dibuix nou
     commit();
   }
 
@@ -2977,7 +3125,7 @@
   const TOOL_KEYS = {
     v: 'selection', 1: 'selection', h: 'hand', r: 'rectangle', 2: 'rectangle', d: 'diamond', 3: 'diamond',
     o: 'ellipse', 4: 'ellipse', a: 'arrow', 5: 'arrow', l: 'line', 6: 'line', p: 'freedraw', 7: 'freedraw',
-    t: 'text', 8: 'text', 9: 'image', e: 'eraser', 0: 'eraser', b: 'bucket', i: 'eyedropper',
+    t: 'text', 8: 'text', n: 'note', 9: 'image', e: 'eraser', 0: 'eraser', b: 'bucket', i: 'eyedropper',
   };
   function isTypingTarget(t) {
     if (!t) return false;
@@ -3003,6 +3151,7 @@
       if (k === 'a') { e.preventDefault(); setTool('selection'); S.editingGroup = null; setSelection(S.elements.map((el) => el.id)); return; }
       if (k === 'g') { e.preventDefault(); if (e.shiftKey) ungroupSelected(); else groupSelected(); return; }
       if (k === 'd') { e.preventDefault(); duplicateSelected(); return; }
+      if (k === 'k') { e.preventDefault(); startLinkEdit(); return; }
       if (k === 's') { e.preventDefault(); openSaveDialog(); return; }
       if (k === 'o') { e.preventDefault(); openFilePicker(); return; }
       if (k === 'e' && e.shiftKey) { e.preventDefault(); openExport(); return; }
@@ -3016,7 +3165,9 @@
 
     if (e.altKey && e.shiftKey && e.code === 'KeyD') { e.preventDefault(); toggleTheme(); return; }
     if (e.altKey && e.shiftKey && e.code === 'KeyR') { e.preventDefault(); rotateSelectedBy(-Math.PI / 2); return; }
+    if (e.altKey && e.shiftKey && e.code === 'KeyC') { e.preventDefault(); copyAsPng(); return; }
     if (e.shiftKey && e.code === 'Digit1') { e.preventDefault(); fitToContent(); return; }
+    if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); ctxFromKeyboard(); return; }
     if (e.altKey) return;
 
     switch (e.key) {
@@ -3038,7 +3189,7 @@
         return;
       case 'Enter': {
         const sel = selectedEls();
-        if (sel.length === 1 && sel[0].type === 'text') { e.preventDefault(); startEditText(sel[0], false); }
+        if (sel.length === 1 && (sel[0].type === 'text' || sel[0].type === 'note')) { e.preventDefault(); startEditText(sel[0], false); }
         return;
       }
       case 'ArrowLeft': case 'ArrowRight': case 'ArrowUp': case 'ArrowDown': {
@@ -3082,14 +3233,16 @@
     if (isTypingTarget(document.activeElement) || editing) return;
     const sel = selectedEls();
     if (!sel.length) return;
-    e.clipboardData.setData('text/plain', clipboardPayload(sel));
+    memClip = clipboardPayload(sel);
+    e.clipboardData.setData('text/plain', memClip);
     e.preventDefault();
   });
   document.addEventListener('cut', (e) => {
     if (isTypingTarget(document.activeElement) || editing) return;
     const sel = selectedEls();
     if (!sel.length) return;
-    e.clipboardData.setData('text/plain', clipboardPayload(sel));
+    memClip = clipboardPayload(sel);
+    e.clipboardData.setData('text/plain', memClip);
     e.preventDefault();
     deleteSelected();
   });
@@ -3103,6 +3256,7 @@
     if (txt) { e.preventDefault(); pasteText(txt); }
   });
   function pastePoint() {
+    if (ctxPasteAt) return ctxPasteAt.slice();
     return pointerOverCanvas && lastWorldPointer ? lastWorldPointer.slice() : viewCenter();
   }
   function pasteText(txt) {
@@ -3124,6 +3278,596 @@
     setSelection([el.id]);
     commit();
   }
+  /* =========================================================
+   * Enllaços dels elements
+   * ========================================================= */
+  /**
+   * Adreça segura per a un enllaç: http(s), mailto o tel. Si no porta protocol s'hi afegeix
+   * https:// (o mailto: si és una adreça de correu). Retorna '' si és buida i null si no és vàlida.
+   */
+  function sanitizeUrl(v) {
+    v = String(v == null ? '' : v).trim();
+    if (!v) return '';
+    if (/^[^\s@/:]+@[^\s@/:]+\.[^\s@/:]+$/.test(v)) v = 'mailto:' + v;
+    if (/^(https?:|mailto:|tel:)/i.test(v)) {
+      try {
+        const u = new URL(v);
+        if (/^https?:$/.test(u.protocol) && !u.hostname) return null;
+        return u.href;
+      } catch (_) { return null; }
+    }
+    // Qualsevol altre protocol (javascript:, data:…) es rebutja; «host:port» es permet
+    if (/^[a-z][a-z0-9+.-]*:/i.test(v) && !/^[^:/]+:\d+(\/|$)/.test(v)) return null;
+    try {
+      const u = new URL('https://' + v.replace(/^\/+/, ''));
+      if (!u.hostname.includes('.') && u.hostname !== 'localhost') return null;
+      return u.href;
+    } catch (_) { return null; }
+  }
+  /** Adreça més curta per mostrar-la (sense https:// ni la barra final). */
+  function prettyUrl(u) {
+    let s = String(u || '').replace(/^https?:\/\//i, '').replace(/^mailto:/i, '').replace(/\/$/, '');
+    try { s = decodeURI(s); } catch (_) { /* es deixa tal qual */ }
+    return s;
+  }
+  function openLink(url) {
+    const u = sanitizeUrl(url);
+    if (!u) return;
+    const a = document.createElement('a');
+    a.href = u;
+    if (/^https?:/i.test(u)) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  /* --- Botonet d'enllaç a la cantonada dels elements --- */
+  const LINK_PATH = new Path2D('M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1');
+  const BADGE_R = 11;
+  let linkBadges = [];
+  let linkHoverId = null;
+  function drawLinkBadges(th) {
+    linkBadges = [];
+    const hidden = drag && drag.type !== 'focus' && drag.type !== 'pan';
+    for (const el of S.elements) {
+      if (!el.link || el._editing || S.selected.has(el.id) || erasing.has(el.id)) continue;
+      const b = R.getBounds(el);
+      const [sx, sy] = toScreen(b.x + b.w, b.y);
+      const cx = Math.round(sx + 4), cy = Math.round(sy - 4);
+      if (cx < -BADGE_R || cy < -BADGE_R || cx > W + BADGE_R || cy > H + BADGE_R) continue;
+      linkBadges.push({ el, x: cx, y: cy });
+      if (hidden) continue;
+      const hot = el.id === linkHoverId;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, BADGE_R, 0, TAU);
+      ctx.fillStyle = hot ? th.accent : S.theme === 'dark' ? '#1f2026' : '#ffffff';
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = th.accent;
+      ctx.stroke();
+      ctx.translate(cx - 7.2, cy - 7.2);
+      ctx.scale(0.6, 0.6);
+      ctx.lineWidth = 2.3;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = hot ? (S.theme === 'dark' ? '#121316' : '#ffffff') : th.accent;
+      ctx.stroke(LINK_PATH);
+      ctx.restore();
+    }
+  }
+  function linkBadgeAt(sx, sy) {
+    const r = BADGE_R + (touchy() ? 8 : 2);
+    for (let i = linkBadges.length - 1; i >= 0; i--) {
+      const b = linkBadges[i];
+      if (Math.hypot(sx - b.x, sy - b.y) <= r) return b;
+    }
+    return null;
+  }
+  const linkTip = $('#link-tip');
+  function setLinkHover(badge) {
+    const id = badge ? badge.el.id : null;
+    if (id === linkHoverId) return;
+    linkHoverId = id;
+    if (badge) {
+      linkTip.textContent = prettyUrl(badge.el.link);
+      linkTip.hidden = false;
+      const w = linkTip.offsetWidth;
+      linkTip.style.left = clamp(badge.x + BADGE_R + 6, 8, W - w - 8) + 'px';
+      linkTip.style.top = Math.max(8, badge.y - 12) + 'px';
+    } else linkTip.hidden = true;
+    requestRender();
+  }
+
+  /* --- Barra de l'enllaç de l'element seleccionat --- */
+  const linkBar = $('#link-bar');
+  const lbView = $('#lb-view');
+  const lbForm = $('#lb-form');
+  const lbInput = $('#lb-input');
+  const lbUrl = $('#lb-url');
+  const lbErr = $('#lb-err');
+  let linkEditId = null;
+  const linkTarget = () => { const sel = selectedEls(); return sel.length === 1 ? sel[0] : null; };
+
+  /** Espai lliure del llenç entre les barres de dalt i les de baix (coordenades de pantalla). */
+  function uiEdges() {
+    const ar = app.getBoundingClientRect();
+    let top = menuBtn.getBoundingClientRect().bottom - ar.top;
+    let bottom = H;
+    const tb = toolbar.getBoundingClientRect();
+    if (tb.top - ar.top > H / 2) bottom = Math.min(bottom, tb.top - ar.top);
+    else top = Math.max(top, tb.bottom - ar.top);
+    for (const g of $$('.bottom-bar > *')) {
+      const r = g.getBoundingClientRect();
+      if (r.height) bottom = Math.min(bottom, r.top - ar.top);
+    }
+    return { top, bottom };
+  }
+
+  function syncLinkBar() {
+    const el = linkTarget();
+    if (linkEditId && (!el || el.id !== linkEditId)) linkEditId = null;
+    const busy = drag && drag.type !== 'focus';
+    const show = el && !editing && !busy && S.tool === 'selection' && (el.link || linkEditId === el.id) && !$('dialog[open]');
+    if (!show) { if (!linkBar.hidden) linkBar.hidden = true; return; }
+    const editMode = linkEditId === el.id;
+    lbView.hidden = editMode;
+    lbForm.hidden = !editMode;
+    if (!editMode) {
+      if (lbUrl.getAttribute('href') !== el.link) {
+        lbUrl.href = el.link;
+        lbUrl.textContent = prettyUrl(el.link);
+        lbUrl.target = /^https?:/i.test(el.link) ? '_blank' : '';
+      }
+      lbErr.hidden = true;
+    }
+    linkBar.hidden = false;
+    const b = R.getBounds(el);
+    const [x1, y1] = toScreen(b.x, b.y);
+    const [x2, y2] = toScreen(b.x + b.w, b.y + b.h);
+    const bw = linkBar.offsetWidth, bh = linkBar.offsetHeight;
+    const edges = uiEdges();
+    const left = clamp((x1 + x2) / 2 - bw / 2, 8, Math.max(8, W - bw - 8));
+    let top = y2 + 16;
+    // Si no hi cap a sota, a sobre (deixant lloc per a la nansa de girar)
+    if (top + bh > edges.bottom - 8) top = y1 - 44 - bh;
+    top = clamp(top, edges.top + 8, Math.max(edges.top + 8, edges.bottom - bh - 8));
+    linkBar.style.left = Math.round(left) + 'px';
+    linkBar.style.top = Math.round(top) + 'px';
+  }
+
+  function startLinkEdit() {
+    if (editing) commitText();
+    const el = linkTarget();
+    if (!el) {
+      toast(S.selected.size
+        ? 'L\'enllaç es posa a un sol element. Per triar un element d\'un grup, fes-hi doble clic.'
+        : 'Selecciona un element per afegir-hi un enllaç.', 4500);
+      return;
+    }
+    closeMenu();
+    linkEditId = el.id;
+    lbInput.value = el.link || '';
+    lbErr.hidden = true;
+    syncLinkBar();
+    lbInput.focus({ preventScroll: true });
+    lbInput.select();
+  }
+  /** Desa l'enllaç escrit. Amb quiet, si no és vàlid es descarta sense avisar. */
+  function applyLink(quiet) {
+    const el = byId(linkEditId);
+    if (!el) { linkEditId = null; return; }
+    const u = sanitizeUrl(lbInput.value);
+    if (u === null) {
+      if (quiet) { linkEditId = null; requestRender(); return; }
+      lbErr.textContent = 'Aquesta adreça no és vàlida. Escriu-la com «exemple.cat» o «https://exemple.cat».';
+      lbErr.hidden = false;
+      lbInput.focus();
+      return;
+    }
+    linkEditId = null;
+    if (document.activeElement === lbInput) lbInput.blur();
+    if (!u) { removeLink(el); return; }
+    if (el.link !== u) { el.link = u; bump(el); commit(); }
+    requestRender();
+  }
+  function removeLink(el) {
+    linkEditId = null;
+    if (el && el.link) {
+      delete el.link;
+      bump(el);
+      commit();
+      toast('S\'ha tret l\'enllaç');
+    }
+    requestRender();
+  }
+  lbForm.addEventListener('submit', (e) => { e.preventDefault(); applyLink(false); });
+  lbInput.addEventListener('input', () => { lbErr.hidden = true; });
+  lbInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      linkEditId = null;
+      lbInput.blur();
+      requestRender();
+    }
+  });
+  $('#lb-edit').addEventListener('click', startLinkEdit);
+  $('#lb-remove').addEventListener('click', () => removeLink(linkTarget()));
+
+  /* =========================================================
+   * Posició de la barra d'eines (a dalt o a baix)
+   * ========================================================= */
+  const mqPhone = window.matchMedia('(max-width: 640px)');
+  /** Sense preferència: a dalt a l'ordinador i la tauleta, i a baix al mòbil (a l'abast del polze). */
+  const toolbarPos = () => S.toolbarPos || (mqPhone.matches ? 'bottom' : 'top');
+  function applyToolbarPos() {
+    if (S.toolbarPos) document.documentElement.dataset.toolbar = S.toolbarPos;
+    else delete document.documentElement.dataset.toolbar;
+    const pos = toolbarPos();
+    for (const b of $$('#tbpos-seg [data-tbpos]')) {
+      const on = b.dataset.tbpos === pos;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', String(on));
+    }
+    requestRender();
+  }
+  $('#tbpos-seg').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tbpos]');
+    if (!b) return;
+    S.toolbarPos = b.dataset.tbpos;
+    applyToolbarPos();
+    saveSoon();
+  });
+  if (mqPhone.addEventListener) mqPhone.addEventListener('change', applyToolbarPos);
+
+  /* =========================================================
+   * Menú contextual (botó dret o toc llarg)
+   * ========================================================= */
+  const ctxEl = $('#ctx-menu');
+  let ctxOpen = false;
+  let ctxWorld = null;        // punt del llenç on s'ha obert (per enganxar-hi)
+  let memClip = null;         // còpia interna, per si el navegador no deixa llegir el porta-retalls
+  let ctxPasteAt = null;
+
+  const svgI = (d) => '<svg viewBox="0 0 24 24" aria-hidden="true">' + d + '</svg>';
+  const CTX_ICONS = {
+    cut: svgI('<circle cx="6" cy="6.5" r="2.5"/><circle cx="6" cy="17.5" r="2.5"/><path d="M8.2 7.8 20 17M8.2 16.2 20 7"/>'),
+    copy: svgI('<rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2"/><path d="M15.5 8.5v-2a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/>'),
+    paste: svgI('<path d="M9 4.5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-12a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="3.5" rx="1"/>'),
+    svg: svgI('<path d="M7.5 5 3 12l4.5 7M16.5 5 21 12l-4.5 7M13.5 4l-3 16"/>'),
+    all: svgI('<rect x="4" y="4" width="16" height="16" rx="2" stroke-dasharray="3 2.6"/>'),
+  };
+  /** Reaprofita la icona d'un botó que ja existeix a la pàgina. */
+  const iconOf = (sel) => { const s = document.querySelector(sel + ' svg'); return s ? s.outerHTML : ''; };
+
+  function ctxItems(onEl) {
+    if (!onEl) {
+      const empty = !S.elements.length;
+      return [
+        { id: 'paste', label: 'Enganxa', kbd: 'Ctrl+V', icon: CTX_ICONS.paste },
+        { id: 'select-all', label: 'Selecciona-ho tot', kbd: 'Ctrl+A', icon: CTX_ICONS.all, disabled: empty },
+        { id: 'fit', label: 'Ajusta a la pantalla', kbd: 'Maj+1', icon: iconOf('#menu [data-action="fit"]'), disabled: empty },
+        '-',
+        { id: 'undo', label: 'Desfés', kbd: 'Ctrl+Z', icon: iconOf('#undo-btn'), disabled: $('#undo-btn').disabled },
+        { id: 'redo', label: 'Refés', kbd: 'Ctrl+Maj+Z', icon: iconOf('#redo-btn'), disabled: $('#redo-btn').disabled },
+        '-',
+        { id: 'copy-png', label: 'Copia el dibuix com a PNG', kbd: 'Alt+Maj+C', icon: iconOf('#menu [data-action="export"]'), disabled: empty },
+        { id: 'export', label: 'Exporta la imatge…', kbd: 'Ctrl+Maj+E', icon: iconOf('#props [data-action="export-selection"]'), disabled: empty },
+        '-',
+        { id: 'grid', label: 'Quadrícula', kbd: 'G', icon: iconOf('#menu [data-action="grid"]'), checked: !!S.grid },
+      ];
+    }
+    const units = selectionUnits();
+    const sel = selectedEls();
+    const items = [];
+    if (sel.length === 1 && (sel[0].type === 'note' || sel[0].type === 'text')) {
+      items.push({ id: 'edit-note', label: 'Edita el text', kbd: 'Retorn', icon: iconOf('#toolbar [data-tool="text"]') }, '-');
+    }
+    items.push(
+      { id: 'cut', label: 'Retalla', kbd: 'Ctrl+X', icon: CTX_ICONS.cut },
+      { id: 'copy', label: 'Copia', kbd: 'Ctrl+C', icon: CTX_ICONS.copy },
+      { id: 'paste', label: 'Enganxa', kbd: 'Ctrl+V', icon: CTX_ICONS.paste },
+      '-',
+      { id: 'copy-png', label: 'Copia com a PNG', kbd: 'Alt+Maj+C', icon: iconOf('#menu [data-action="export"]') },
+      { id: 'export-png', label: 'Exporta a PNG', icon: iconOf('#props [data-action="export-selection"]') },
+      { id: 'export-svg', label: 'Exporta a SVG', icon: CTX_ICONS.svg },
+      '-',
+    );
+    if (sel.length === 1) {
+      const li = iconOf('#props [data-action="link"]');
+      if (sel[0].link) {
+        items.push(
+          { id: 'open-link', label: 'Obre l\'enllaç', icon: li },
+          { id: 'link', label: 'Edita l\'enllaç…', kbd: 'Ctrl+K', icon: iconOf('#lb-edit') },
+          { id: 'remove-link', label: 'Treu l\'enllaç', icon: iconOf('#lb-remove') },
+          '-',
+        );
+      } else items.push({ id: 'link', label: 'Afegeix un enllaç…', kbd: 'Ctrl+K', icon: li }, '-');
+    }
+    if (units.length > 1) items.push({ id: 'group', label: 'Agrupa', kbd: 'Ctrl+G', icon: iconOf('#props [data-action="group"]') });
+    if (sel.some((el) => targetGroup(el))) items.push({ id: 'ungroup', label: 'Desagrupa', kbd: 'Ctrl+Maj+G', icon: iconOf('#props [data-action="ungroup"]') });
+    items.push({ row: 'Capes', buttons: ['back', 'backward', 'forward', 'front'] });
+    const shNow = sel.every((el) => (el.shadow || 0) === (sel[0].shadow || 0)) ? sel[0].shadow || 0 : -1;
+    items.push({ row: 'Ombra', values: [0, 1, 2], current: shNow });
+    if (units.length > 1) items.push({ row: 'Alinea', buttons: ['align-left', 'align-center', 'align-right', 'align-top', 'align-middle', 'align-bottom'] });
+    items.push(
+      { id: 'flip-h', label: 'Inverteix horitzontalment', kbd: 'Maj+H', icon: iconOf('#props [data-action="flip-h"]') },
+      { id: 'flip-v', label: 'Inverteix verticalment', kbd: 'Maj+V', icon: iconOf('#props [data-action="flip-v"]') },
+      { id: 'fit-sel', label: 'Ajusta a la pantalla', icon: iconOf('#menu [data-action="fit"]') },
+      '-',
+      { id: 'duplicate', label: 'Duplica', kbd: 'Ctrl+D', icon: iconOf('#props [data-action="duplicate"]') },
+      { id: 'delete', label: 'Elimina', kbd: 'Supr', icon: iconOf('#props [data-action="delete"]'), danger: true },
+    );
+    return items;
+  }
+
+  function renderCtx(items) {
+    ctxEl.textContent = '';
+    for (const it of items) {
+      if (it === '-') { ctxEl.appendChild(document.createElement('hr')); continue; }
+      if (it.row) {
+        const row = document.createElement('div');
+        row.className = 'ctx-row';
+        row.setAttribute('role', 'group');
+        row.setAttribute('aria-label', it.row);
+        const lab = document.createElement('span');
+        lab.textContent = it.row;
+        row.appendChild(lab);
+        const box = document.createElement('div');
+        box.className = 'ctx-icons';
+        if (it.values) {
+          for (const v of it.values) {
+            const src = $('#props [data-key="shadow"] [data-value="' + v + '"]');
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.setAttribute('role', 'menuitemradio');
+            b.setAttribute('aria-checked', String(v === it.current));
+            b.dataset.ctx = 'shadow-' + v;
+            b.title = src ? src.title : '';
+            b.setAttribute('aria-label', b.title);
+            b.innerHTML = src ? src.innerHTML : '';
+            box.appendChild(b);
+          }
+        }
+        for (const a of it.buttons || []) {
+          const src = $('#props [data-action="' + a + '"]');
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.setAttribute('role', 'menuitem');
+          b.dataset.ctx = a;
+          b.title = src ? src.title : a;
+          b.setAttribute('aria-label', b.title.split(' — ')[0]);
+          b.innerHTML = src ? src.innerHTML : '';
+          box.appendChild(b);
+        }
+        row.appendChild(box);
+        ctxEl.appendChild(row);
+        continue;
+      }
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.ctx = it.id;
+      b.disabled = !!it.disabled;
+      if (it.danger) b.className = 'danger';
+      if (it.checked != null) { b.setAttribute('role', 'menuitemcheckbox'); b.setAttribute('aria-checked', String(it.checked)); }
+      else b.setAttribute('role', 'menuitem');
+      b.innerHTML = (it.icon || svgI('')) + '<span></span>' + (it.kbd ? '<kbd></kbd>' : '');
+      b.querySelector('span').textContent = it.label;
+      if (it.kbd) b.querySelector('kbd').textContent = it.kbd;
+      ctxEl.appendChild(b);
+    }
+  }
+
+  /** Obre el menú a la posició de pantalla (clientX, clientY). */
+  function openCtxMenu(cx, cy, onEl, fromKeyboard) {
+    closeMenu();
+    if (picker.key) closePicker();
+    renderCtx(ctxItems(onEl));
+    ctxEl.hidden = false;
+    ctxOpen = true;
+    ctxEl.style.left = '0px';
+    ctxEl.style.top = '0px';
+    const m = 8;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    ctxEl.style.maxHeight = (vh - m * 2) + 'px';
+    const w = ctxEl.offsetWidth, h = ctxEl.offsetHeight;
+    let x = cx + 2, y = cy + 2;
+    if (x + w > vw - m) x = Math.max(m, cx - w - 2);
+    if (x + w > vw - m) x = Math.max(m, vw - w - m);
+    if (y + h > vh - m) y = Math.max(m, Math.min(cy - h - 2, vh - h - m));
+    ctxEl.style.left = Math.round(x) + 'px';
+    ctxEl.style.top = Math.round(y) + 'px';
+    const first = $('button:not(:disabled)', ctxEl);
+    if (fromKeyboard && first) first.focus({ preventScroll: true });
+    else ctxEl.focus({ preventScroll: true });
+  }
+  function closeCtxMenu() {
+    if (!ctxOpen) return;
+    ctxOpen = false;
+    ctxEl.hidden = true;
+    if (ctxEl.contains(document.activeElement)) document.activeElement.blur();
+  }
+
+  /**
+   * Obre el menú des d'un punt del llenç: sobre un element el selecciona (si no ho estava)
+   * i mostra les accions de la selecció; en un lloc buit, les del llenç.
+   */
+  function ctxAtPoint(clientX, clientY) {
+    clearLongPress();
+    if (editing) commitText();
+    cancelDrag();
+    const r = canvas.getBoundingClientRect();
+    const [wx, wy] = toWorld(clientX - r.left, clientY - r.top);
+    ctxWorld = [wx, wy];
+    const hit = hitTest(wx, wy);
+    let onEl = false;
+    if (hit) {
+      if (S.editingGroup && !groupsOf(hit).includes(S.editingGroup)) S.editingGroup = null;
+      if (S.tool !== 'selection') setTool('selection');
+      if (!S.selected.has(hit.id)) setSelection(unitIdsFor(hit));
+      onEl = true;
+    } else if (S.selected.size && inBox(wx, wy, selectionBounds(), 6 / S.view.zoom)) {
+      onEl = true;
+    } else if (S.selected.size) {
+      S.editingGroup = null;
+      setSelection([]);
+    }
+    requestRender();
+    openCtxMenu(clientX, clientY, onEl, false);
+  }
+
+  /** Tecla de menú o Maj+F10: s'obre al centre de la selecció (o de la pantalla). */
+  function ctxFromKeyboard() {
+    if (editing) commitText();
+    const r = canvas.getBoundingClientRect();
+    let sx = W / 2, sy = H / 2;
+    if (S.selected.size) {
+      const b = selectionBounds();
+      sx = clamp(b.x * S.view.zoom + S.view.x + b.w * S.view.zoom / 2, 0, W);
+      sy = clamp(b.y * S.view.zoom + S.view.y + b.h * S.view.zoom / 2, 0, H);
+    }
+    ctxWorld = toWorld(sx, sy);
+    openCtxMenu(r.left + sx, r.top + sy, S.selected.size > 0, true);
+  }
+
+  canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (ctxOpen && lastPointerType !== 'mouse') return; // ja obert amb el toc llarg
+    ctxAtPoint(e.clientX, e.clientY);
+  });
+  document.addEventListener('contextmenu', (e) => { if (ctxEl.contains(e.target)) e.preventDefault(); });
+
+  /* --- Toc llarg (pantalles tàctils i llapis) --- */
+  let lpTimer = 0;
+  let lpStart = null;
+  const LONG_PRESS_MS = 520;
+  function clearLongPress() { clearTimeout(lpTimer); lpTimer = 0; lpStart = null; }
+  function armLongPress(e) {
+    clearLongPress();
+    if (e.pointerType === 'mouse' || !['selection', 'hand'].includes(S.tool)) return;
+    lpStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    lpTimer = setTimeout(() => {
+      const p = lpStart;
+      lpTimer = 0;
+      if (!p || pointers.size !== 1 || ctxOpen) return;
+      if (drag && drag.type === 'move' && drag.moved) return;
+      ctxAtPoint(p.x, p.y);
+      lpStart = null;
+    }, LONG_PRESS_MS);
+  }
+  function moveLongPress(e) {
+    if (lpStart && (e.pointerId !== lpStart.id || Math.hypot(e.clientX - lpStart.x, e.clientY - lpStart.y) > 10)) clearLongPress();
+  }
+
+  /* --- Accions del menú --- */
+  async function ctxCopy(cut) {
+    const sel = selectedEls();
+    if (!sel.length) return;
+    const payload = clipboardPayload(sel);
+    memClip = payload;
+    try { await navigator.clipboard.writeText(payload); } catch (_) {
+      // Sense permís: queda a la còpia interna i es pot enganxar igualment des de la pissarra
+    }
+    if (cut) deleteSelected();
+  }
+  async function ctxPaste(at) {
+    ctxPasteAt = at;
+    try {
+      let done = false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.read) {
+          const items = await navigator.clipboard.read();
+          for (const it of items) {
+            const imgType = it.types.find((t) => t.indexOf('image/') === 0);
+            if (imgType) {
+              const blob = await it.getType(imgType);
+              await insertImageFile(new File([blob], 'enganxat', { type: imgType }), at);
+              done = true;
+              break;
+            }
+            if (it.types.includes('text/plain')) {
+              const txt = await (await it.getType('text/plain')).text();
+              if (txt) { pasteText(txt); done = true; break; }
+            }
+          }
+        } else if (navigator.clipboard && navigator.clipboard.readText) {
+          const txt = await navigator.clipboard.readText();
+          if (txt) { pasteText(txt); done = true; }
+        }
+      } catch (_) { /* el navegador no deixa llegir el porta-retalls */ }
+      if (!done && memClip) { pasteText(memClip); done = true; }
+      if (!done) toast('El navegador no deixa enganxar des del menú: fes servir Ctrl+V', 4000);
+    } finally {
+      ctxPasteAt = null;
+    }
+  }
+  function quickExportOpts(scale) {
+    const bgi = S.bgImage && expBg.checked && expBgImg.checked ? S.bgImage : null;
+    return { theme: S.theme, bg: expBg.checked, bgColor: S.background, bgImage: bgi, scale, files };
+  }
+  /** Exporta directament la selecció (o tot) a PNG o SVG, amb les opcions de l'última exportació. */
+  async function quickExport(fmt) {
+    if (editing) commitText();
+    const selOnly = S.selected.size > 0;
+    const els = selOnly ? selectedEls() : S.elements;
+    if (!els.length) { toast('El llenç és buit: no hi ha res per exportar'); return; }
+    const name = exportFileName(fmt, selOnly);
+    if (fmt === 'svg') {
+      download(new Blob([R.toSVG(els, quickExportOpts(1))], { type: 'image/svg+xml' }), name);
+      return;
+    }
+    const opts = quickExportOpts(expScale);
+    await R.preloadImages(opts.bgImage ? els.concat([{ type: 'image', fileId: opts.bgImage.fileId }]) : els, files);
+    R.renderToCanvas(els, opts).toBlob((blob) => { if (blob) download(blob, name); }, 'image/png');
+  }
+
+  function runCtx(a) {
+    const at = ctxWorld;
+    closeCtxMenu();
+    switch (a) {
+      case 'cut': ctxCopy(true); break;
+      case 'copy': ctxCopy(false); break;
+      case 'paste': ctxPaste(at); break;
+      case 'copy-png': copyAsPng(); break;
+      case 'export-png': quickExport('png'); break;
+      case 'export-svg': quickExport('svg'); break;
+      case 'fit-sel': fitToContent(selectedEls()); break;
+      case 'select-all': setTool('selection'); S.editingGroup = null; setSelection(S.elements.map((el) => el.id)); break;
+      case 'edit-note': { const n = selectedEls(); if (n.length === 1) startEditText(n[0], false); break; }
+      case 'open-link': { const n = selectedEls(); if (n.length === 1) openLink(n[0].link); break; }
+      case 'remove-link': removeLink(linkTarget()); break;
+      default:
+        if (a.indexOf('shadow-') === 0) setProp('shadow', +a.slice(7));
+        else runAction(a);
+    }
+  }
+  ctxEl.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-ctx]');
+    if (!b || b.disabled) return;
+    runCtx(b.dataset.ctx);
+  });
+  ctxEl.addEventListener('keydown', (e) => {
+    const btns = $$('button:not(:disabled)', ctxEl);
+    const i = btns.indexOf(document.activeElement);
+    let next = null;
+    if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); closeCtxMenu(); }
+    else if (e.key === 'ArrowDown') next = btns[(i + 1) % btns.length];
+    else if (e.key === 'ArrowUp') next = btns[(i - 1 + btns.length) % btns.length];
+    else if (e.key === 'ArrowRight' && i >= 0 && btns[i].closest('.ctx-icons')) next = btns[i + 1];
+    else if (e.key === 'ArrowLeft' && i >= 0 && btns[i].closest('.ctx-icons')) next = btns[i - 1];
+    else if (e.key === 'Home') next = btns[0];
+    else if (e.key === 'End') next = btns[btns.length - 1];
+    else if (e.key === 'Enter' || e.key === ' ') return; // el botó fa clic sol
+    else { closeCtxMenu(); return; } // qualsevol altra tecla: tanca i segueix (dreceres)
+    e.stopPropagation();
+    if (next) { e.preventDefault(); next.focus(); }
+  });
+  document.addEventListener('pointerdown', (e) => { if (ctxOpen && !ctxEl.contains(e.target)) closeCtxMenu(); }, true);
+  window.addEventListener('resize', closeCtxMenu);
+  window.addEventListener('blur', closeCtxMenu);
+  canvas.addEventListener('wheel', closeCtxMenu, { passive: true });
+
   function pasteElements(list, fileMap) {
     Object.assign(files, sanitizeFiles(fileMap));
     const els = list.filter(isValidElement).map(normalizeElement);
@@ -3238,16 +3982,41 @@
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes());
   }
 
-  function saveToFile() {
+  /**
+   * Nom de fitxer vàlid a tots els sistemes: sense l'extensió, sense els caràcters
+   * prohibits (\ / : * ? " < > |) ni de control, i sense espais o punts al final.
+   */
+  function cleanFileName(v) {
+    return String(v || '')
+      .replace(/\.json$/i, '')
+      .replace(/[\u0000-\u001f\u007f<>:"/\\|?*]+/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/-{2,}/g, '-')
+      .replace(/^[-. ]+|[-. ]+$/g, '')
+      .slice(0, 120);
+  }
+  function updateDocTitle() {
+    document.title = S.fileName ? S.fileName + ' — Pissarra' : 'Pissarra';
+  }
+  function setFileName(name) {
+    S.fileName = cleanFileName(name) || null;
+    updateDocTitle();
+    saveSoon();
+  }
+
+  function saveToFile(name) {
     closeMenu();
     if (editing) commitText();
+    name = cleanFileName(name) || 'pissarra-' + stamp();
     const data = {
       type: 'pissarra', version: 1, source: 'Pissarra',
       elements: serialize(S.elements), files: sceneFiles(),
       appState: { background: S.background, bgImage: S.bgImage },
     };
-    download(new Blob([JSON.stringify(data)], { type: 'application/json' }), 'pissarra-' + stamp() + '.json');
-    toast('Dibuix desat a un fitxer');
+    download(new Blob([JSON.stringify(data)], { type: 'application/json' }), name + '.json');
+    setFileName(name);
+    toast('S\'ha desat «' + name + '.json»');
   }
 
   /** Només s'accepten imatges incrustades (data:image/…) dels fitxers i enllaços externs. */
@@ -3334,10 +4103,42 @@
     $('#share-local-note').hidden = location.protocol !== 'file:';
     $('#share-native').hidden = !navigator.share;
     resetShare();
+    saveName.value = S.fileName || 'pissarra-' + stamp();
+    syncSaveName();
     dlgSave.showModal();
+    // Amb teclat i ratolí, el nom queda seleccionat per escriure'n un de nou directament
+    if (!touchy()) { saveName.focus(); saveName.select(); }
   }
+  const saveName = $('#save-name');
+  const saveHint = $('#save-name-hint');
+  function syncSaveName() {
+    const raw = saveName.value.trim().replace(/\.json$/i, '');
+    const clean = cleanFileName(saveName.value);
+    if (!clean) {
+      saveHint.textContent = raw ? 'Aquest nom no és vàlid: escriu-ne un altre.' : 'Escriu un nom per al fitxer.';
+      saveHint.classList.add('warn');
+    } else if (clean !== raw) {
+      saveHint.textContent = 'Es desarà com a «' + clean + '.json» (alguns caràcters no es poden fer servir en noms de fitxer).';
+      saveHint.classList.add('warn');
+    } else {
+      saveHint.textContent = 'Es desarà a la carpeta de baixades (o on et pregunti el navegador).';
+      saveHint.classList.remove('warn');
+    }
+    $('#save-file-btn').disabled = !clean;
+  }
+  function saveFromDialog() {
+    const name = cleanFileName(saveName.value);
+    if (!name) { syncSaveName(); saveName.focus(); return; }
+    dlgSave.close();
+    saveToFile(name);
+  }
+  saveName.addEventListener('input', syncSaveName);
+  saveName.addEventListener('keydown', (e) => {
+    // Retorn desa (el formulari del diàleg, si no, el tancaria sense desar)
+    if (e.key === 'Enter') { e.preventDefault(); saveFromDialog(); }
+  });
   shareImages.addEventListener('change', resetShare);
-  $('#save-file-btn').addEventListener('click', () => { dlgSave.close(); saveToFile(); });
+  $('#save-file-btn').addEventListener('click', saveFromDialog);
 
   shareCreate.addEventListener('click', async () => {
     if (!S.elements.length) { shareInfo('El llenç és buit: dibuixa alguna cosa abans de compartir-lo.', true); return; }
@@ -3422,6 +4223,7 @@
       setBgImage(d.appState && d.appState.bgImage);
       commit();
       fitToContent();
+      setFileName(null);
       toast('S\'ha obert el dibuix compartit');
     } catch (err) {
       toast('No s\'ha pogut obrir l\'enllaç: pot ser que estigui incomplet o que el navegador no sigui compatible.', 5000);
@@ -3464,6 +4266,7 @@
       setBgImage(res.bgImage || null);
       commit();
       fitToContent();
+      setFileName(String(file.name || '').replace(/\.(json|pissarra|excalidraw)$/i, ''));
       toast('S\'ha obert «' + file.name + '»');
     } catch (err) {
       toast('No s\'ha pogut obrir el fitxer: el format no es reconeix');
@@ -3573,6 +4376,32 @@
     expBgImg.disabled = !expBg.checked;
   }
 
+  /** Descripció curta de la selecció: «l'element», «el grup (3 elements)» o «4 elements». */
+  function selectionLabel() {
+    const units = selectionUnits();
+    const n = S.selected.size;
+    if (units.length === 1 && n === 1) return 'l\'element';
+    if (units.length === 1) return 'el grup (' + n + ' elements)';
+    return n + ' elements';
+  }
+  /** Nom del fitxer exportat: el text si és un sol text, «seleccio» si és una selecció. */
+  function exportFileName(ext, selOnly = expSel.checked && S.selected.size > 0) {
+    let base = 'pissarra';
+    if (selOnly) {
+      const sel = selectedEls();
+      const txt = sel.length === 1 && (sel[0].type === 'text' || sel[0].type === 'note') ? sel[0].text : '';
+      const slug = txt.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+      base += '-' + (slug || 'seleccio');
+    }
+    return base + '-' + stamp() + '.' + ext;
+  }
+  function syncExportTitle() {
+    const selOnly = expSel.checked && S.selected.size > 0;
+    $('#export-title').textContent = selOnly ? 'Exporta la selecció' : 'Exporta la imatge';
+    $('#exp-sel-label').textContent = S.selected.size ? 'Només la selecció: ' + selectionLabel() : 'Només la selecció';
+  }
+
   function openExport() {
     closeMenu();
     if (editing) commitText();
@@ -3581,6 +4410,7 @@
     expSel.disabled = !S.selected.size;
     expSel.checked = S.selected.size > 0;
     syncExportBgImg();
+    syncExportTitle();
     dlgExport.showModal();
     updateExportPreview();
   }
@@ -3602,6 +4432,7 @@
     c.drawImage(src, 0, 0, pv.width, pv.height);
   }
   expBg.addEventListener('change', syncExportBgImg);
+  expSel.addEventListener('change', syncExportTitle);
   [expBg, expDark, expSel, expBgImg].forEach((i) => i.addEventListener('change', updateExportPreview));
   $('#exp-scale').addEventListener('click', (e) => {
     const b = e.target.closest('[data-scale]');
@@ -3613,31 +4444,54 @@
     const els = exportEls();
     await exportPreload(els);
     R.renderToCanvas(els, exportOpts(expScale)).toBlob((blob) => {
-      if (blob) download(blob, 'pissarra-' + stamp() + '.png');
+      if (blob) download(blob, exportFileName('png'));
     }, 'image/png');
   });
   $('#exp-svg').addEventListener('click', () => {
     const svg = R.toSVG(exportEls(), exportOpts(1));
-    download(new Blob([svg], { type: 'image/svg+xml' }), 'pissarra-' + stamp() + '.svg');
+    download(new Blob([svg], { type: 'image/svg+xml' }), exportFileName('svg'));
   });
+  async function copyCanvasPng(c) {
+    const blob = new Promise((res) => c.toBlob(res, 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+  }
+  let expCopyTimer = 0;
   $('#exp-copy').addEventListener('click', async () => {
+    const btn = $('#exp-copy');
     try {
       const els = exportEls();
       await exportPreload(els);
-      const c = R.renderToCanvas(els, exportOpts(expScale));
-      const blob = new Promise((res) => c.toBlob(res, 'image/png'));
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      toast('Imatge copiada al porta-retalls');
+      await copyCanvasPng(R.renderToCanvas(els, exportOpts(expScale)));
+      btn.textContent = 'Copiada ✓';
     } catch (err) {
-      toast('El navegador no permet copiar imatges aquí. Fes servir «PNG».');
+      btn.textContent = 'No es pot copiar: fes servir PNG';
     }
+    clearTimeout(expCopyTimer);
+    expCopyTimer = setTimeout(() => { btn.textContent = 'Copia'; }, 2500);
   });
+
+  /** Alt+Maj+C: copia la selecció (o tot el dibuix) com a PNG, amb les opcions d'exportació actuals. */
+  async function copyAsPng() {
+    if (editing) commitText();
+    const els = S.selected.size ? selectedEls() : S.elements;
+    if (!els.length) { toast('El llenç és buit: no hi ha res per copiar'); return; }
+    const opts = quickExportOpts(2);
+    try {
+      await R.preloadImages(opts.bgImage ? els.concat([{ type: 'image', fileId: opts.bgImage.fileId }]) : els, files);
+      await copyCanvasPng(R.renderToCanvas(els, opts));
+      toast(S.selected.size ? 'S\'ha copiat ' + selectionLabel() + ' com a imatge' : 'S\'ha copiat el dibuix com a imatge');
+    } catch (err) {
+      toast('El navegador no permet copiar imatges aquí. Fes servir «Exporta la imatge…».', 4000);
+    }
+  }
 
   /* =========================================================
    * Inici
    * ========================================================= */
   function init() {
     loadSaved();
+    updateDocTitle();
+    applyToolbarPos();
     S.elements = S.elements.map(normalizeElement);
     applyTheme();
     resize();
@@ -3655,7 +4509,10 @@
         .catch(() => {})
         .then(() => {
           R.clearMetrics();
-          for (const el of S.elements) if (el.type === 'text') measureTextEl(el);
+          for (const el of S.elements) {
+            if (el.type === 'text') measureTextEl(el);
+            else if (el.type === 'note') { bump(el); fitNote(el); }
+          }
           if (editing) positionEditor();
           requestRender();
         });

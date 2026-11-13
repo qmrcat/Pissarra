@@ -13,7 +13,13 @@ Està feta amb **HTML, CSS i JavaScript purs**: sense frameworks ni llibreries i
 - Fletxes i línies; es poden corbar afegint punts intermedis.
 - Llapis a mà alçada.
 - Text de diverses línies, amb tres tipus de lletra (a mà, normal i de codi), quatre mides i alineació.
+- **Pòsits** (notes adhesives, `N`): un clic crea un pòsit de 200 × 200 i ja s'hi pot escriure; arrossegant, se'n tria la mida. El text salta de línia sol per ajustar-se a l'amplada i, si no hi cap, el pòsit s'allarga cap avall (no s'encongeix sol: es pot fer més petit amb les nanses fins on hi càpiga el text). Per tornar-lo a editar: doble clic, `Retorn` o «Edita el text» del menú contextual. El color del pòsit és el **Fons** del panell (groc per defecte; no pot ser transparent) i el text fa servir el color del **Traç**, el tipus de lletra, la mida i l'alineació del text. Es poden moure, girar, agrupar, enganxar-hi fletxes, pintar amb el pot i exportar com qualsevol altre element. Un pòsit buit no s'esborra.
 - Imatges: des del botó, arrossegant un fitxer o enganxant-les del porta-retalls.
+- **Enllaços als elements** (com a l'Excalidraw): selecciona un element i prem `Ctrl+K`, el botó d'enllaç de la secció «Accions» del panell o «Afegeix un enllaç…» del menú contextual. N'hi ha prou d'escriure `exemple.cat` (s'hi afegeix `https://`) o una adreça de correu (es converteix en `mailto:`); s'accepten adreces `http`, `https`, `mailto` i `tel`, i qualsevol altra cosa (com `javascript:`) es rebutja. `Retorn` o un clic fora desa, `Esc` cancel·la i deixar-lo buit el treu.
+  - Els elements amb enllaç mostren un **botonet** a la cantonada superior dreta: en passar-hi per sobre se'n veu l'adreça i amb un clic (o un toc) s'obre en una pestanya nova.
+  - Quan l'element està seleccionat, a sota apareix una barra amb l'adreça (clicable) i els botons per editar-la o treure-la. Al menú contextual també hi ha «Obre l'enllaç», «Edita l'enllaç…» i «Treu l'enllaç».
+  - L'enllaç es desa amb el dibuix (fitxer, navegador i enllaç per compartir), es copia i es duplica amb l'element i es manté a l'exportació **SVG** (l'element és clicable). Al PNG no hi surt.
+  - Cada enllaç és d'un sol element: per posar-ne un a un element d'un grup, fes doble clic al grup i tria'l.
 - Goma d'esborrar.
 - **Pot de pintura** (`B`): pinta els elements sobre els quals fas clic (o arrossegues) amb el color triat al panell. A «Pinta» tries si pinta el **fons** (rectangles, rombes i el·lipses, amb l'estil d'emplenat triat; n'hi ha prou de fer clic a l'interior, encara que la forma no tingui fons) o el **traç** (també línies, fletxes, llapis i text). Cada arrossegada és un sol pas de l'historial. Amb `Alt`+clic agafa el color de sota i el fa servir per pintar.
 - **Comptagotes** (`I`): agafa el color d'un element (el fons, si fas clic a l'interior d'una forma amb fons; si no, el traç), d'un punt d'una imatge o, si no hi ha res, el fons de la pissarra. El color passa a ser el color de fons o de traç actual (el que faran servir el pot i les eines de dibuix) i es torna a l'eina anterior. El color agafat és el desat, no el que es veu en tema fosc, de manera que és coherent en tots dos temes.
@@ -33,6 +39,7 @@ Està feta amb **HTML, CSS i JavaScript purs**: sense frameworks ni llibreries i
 - Traç transparent per als rectangles, rombes i el·lipses (per fer formes només amb fons). No s'aplica a línies, fletxes, llapis ni text, perquè quedarien invisibles. Si una forma es queda sense traç ni fons, a l'editor es mostra amb una vora discontínua tènue per poder-la trobar; aquesta vora no surt a les exportacions.
 - Emplenat ratllat, quadriculat o sòlid.
 - Gruix, traç continu / discontinu / puntejat i opacitat.
+- **Ombres** per a qualsevol element (formes, línies, fletxes, llapis, text, pòsits i imatges): sense ombra, **suau** o **marcada**, des de la secció «Ombra» del panell o del menú contextual. S'aplica als elements seleccionats i queda com a opció per als elements nous que dibuixis després. Els pòsits en guarden una de pròpia: per defecte, ombra suau (es pot treure). L'ombra fa una sola silueta per element (fons i traç junts), surt a les exportacions PNG i SVG (en SVG, amb un filtre `feDropShadow`) i en tema fosc és més intensa perquè es vegi.
 
 **Edició**
 - Selecció individual, múltiple (Maj + clic) o per àrea.
@@ -59,14 +66,22 @@ Està feta amb **HTML, CSS i JavaScript purs**: sense frameworks ni llibreries i
 **Fitxers**
 - **Desament automàtic** al navegador (`localStorage`).
 - **Desa a…** (`Ctrl+S`): desar el dibuix en un fitxer JSON propi o crear un **enllaç per compartir**.
+  - Abans de desar el fitxer pots **triar-ne el nom** (l'extensió `.json` s'hi afegeix sola). Proposa el nom amb què es va desar o obrir el dibuix (o `pissarra-data-hora` si és nou), seleccionat perquè n'escriguis un altre directament; `Retorn` desa. Els caràcters que no es poden fer servir en noms de fitxer (`\ / : * ? " < > |`) es canvien per un guionet i el diàleg avisa de com quedarà. El nom es recorda (també en recarregar la pàgina), es mostra al títol de la pestanya i s'esborra en netejar el llenç o en obrir un enllaç compartit. On va a parar el fitxer ho decideix el navegador: normalment, la carpeta de baixades.
 - Obrir dibuixos desats (`Ctrl+O` o arrossegant el fitxer a la pissarra).
 - **Importació bàsica de fitxers `.excalidraw`** (vegeu les limitacions).
 - Exportació a **PNG** (escala 1×, 2× o 3×) i **SVG**, amb o sense fons, amb o sense la imatge de fons (si n'hi ha), en tema clar o fosc, i de tot el dibuix o només de la selecció.
+- **Exportar un element o un grup com a imatge**: amb un o més elements (o un grup) seleccionats, el botó «Exporta com a imatge» de la secció «Accions» del panell (o `Ctrl+Maj+E`) obre el diàleg d'exportació amb «Només la selecció» marcat; el diàleg indica què s'exporta («l'element», «el grup (3 elements)», «4 elements»). La imatge s'ajusta a la mida de la selecció, amb un petit marge. El fitxer es diu `pissarra-seleccio-…` o, si és un sol text, porta el text al nom (per exemple `pissarra-hola-mon-….png`).
+- **Copiar la selecció com a PNG** directament al porta-retalls, sense obrir el diàleg: `Alt+Maj+C` (sense selecció, copia tot el dibuix). Fa servir el tema actual, escala 2× i les opcions de fons de l'última exportació. Alguns navegadors (o pàgines sense HTTPS) no deixen copiar imatges; llavors cal fer servir el diàleg i descarregar el PNG.
 - Còpia de la imatge al porta-retalls (si el navegador ho permet).
 
 **Interfície**
 - **Tema fosc per defecte** i tema clar. El dibuix s'adapta al tema: els colors es desen en la versió clara i en tema fosc se n'inverteix la lluminositat mantenint el to.
 - Adaptada a **PC, tauleta i mòbil**: al mòbil la barra d'eines baixa a la part inferior (a l'abast del polze) i les opcions d'estil s'obren en un panell amb el botó «Estil».
+- **Posició de la barra d'eines**: al menú, «Barra d'eines» → **A dalt** o **A baix**. Per defecte és a dalt a l'ordinador i la tauleta, i a baix al mòbil; quan en tries una, s'aplica a totes les mides de pantalla i queda desada al navegador. A l'ordinador, a baix es col·loca al centre, al costat del zoom; si la finestra és estreta, el zoom i el desfés pugen a sobre de la barra perquè no se superposin.
+- **Menú contextual** amb el **botó dret** del ratolí (o un **toc llarg** a la pantalla tàctil, o `Maj+F10` / tecla de menú amb el teclat):
+  - **Sobre un element o un grup** (el selecciona si no ho estava; si hi ha una selecció de diversos elements i es fa clic dret dins el seu requadre, actua sobre tota la selecció): retalla, copia, enganxa, copia com a PNG, exporta a PNG o a SVG, agrupa o desagrupa (segons el cas), capes (envia al fons, enrere, endavant, porta al davant), alinea (amb dues unitats o més), inverteix horitzontalment o verticalment, ajusta la vista a la selecció, duplica i elimina.
+  - **En un lloc buit**: enganxa (al punt on s'ha obert el menú), selecciona-ho tot, ajusta a la pantalla, desfés, refés, copia el dibuix com a PNG, exporta la imatge i quadrícula.
+  - L'exportació des del menú descarrega el fitxer directament, amb el tema actual, l'escala i les opcions de fons de l'última exportació. Es pot recórrer amb les fletxes i es tanca amb `Esc`.
 - Interfície en català, amb finestra d'ajuda i dreceres de teclat.
 
 ---
@@ -91,6 +106,8 @@ I obre `http://localhost:8000` (o `http://IP-DEL-TEU-ORDINADOR:8000` des d'un al
 
 ### Publicar-la
 Com que són fitxers estàtics, es pot publicar tal qual a GitHub Pages, Netlify, Cloudflare Pages o qualsevol servidor web. Cal publicar-la si vols compartir dibuixos amb enllaços amb altres persones o dispositius (vegeu l'apartat següent).
+
+Té favicon (un quadre lila amb un gargot i un pòsit) i un `manifest.webmanifest`, de manera que, publicada, es pot afegir a la pantalla d'inici del mòbil o la tauleta i s'obre com una aplicació, amb la seva icona. No funciona sense connexió (no té *service worker*), tot i que el dibuix sempre queda desat al navegador.
 
 ---
 
@@ -127,6 +144,7 @@ A **Desa a… → Enllaç per compartir → Crea l'enllaç** s'obté un enllaç 
 | Línia | `L` o `6` |
 | Llapis | `P` o `7` |
 | Text | `T` o `8` (o doble clic al llenç) |
+| Pòsit | `N` |
 | Imatge | `9` |
 | Goma | `E` o `0` |
 | Pot de pintura | `B` (amb `Alt`+clic agafa un color) |
@@ -153,6 +171,9 @@ A **Desa a… → Enllaç per compartir → Crea l'enllaç** s'obté un enllaç 
 | Tema clar / fosc | `Alt+Maj+D` |
 | Obrir / Desa a… (fitxer o enllaç) | `Ctrl+O` / `Ctrl+S` |
 | Exportar imatge | `Ctrl+Maj+E` |
+| Copiar la selecció (o tot) com a PNG | `Alt+Maj+C` |
+| Menú contextual | Clic dret · `Maj+F10` · tecla de menú |
+| Afegir o editar un enllaç | `Ctrl+K` |
 | Ajuda | `?` |
 
 A macOS, `Ctrl` és `Cmd`.
@@ -161,6 +182,7 @@ A macOS, `Ctrl` és `Cmd`.
 - **Un dit**: dibuixar o seleccionar, segons l'eina.
 - **Dos dits**: zoom i desplaçament.
 - **Doble toc**: escriure un text (o editar-ne un d'existent).
+- **Toc llarg** (amb l'eina de selecció o la mà): obre el menú contextual de l'element tocat o del llenç.
 - **Botó «Estil»** (mòbil): obre les opcions de color, gruix, etc.
 
 ### Línies i fletxes corbes
@@ -184,6 +206,15 @@ Les fletxes i les línies es poden **enganxar** a rectangles, rombes, el·lipses
 ```
 pissarra/
 ├── index.html        Estructura de la pàgina, icones (SVG en línia) i diàlegs
+├── favicon.ico       Icona per als navegadors antics (16, 32 i 48 px)
+├── manifest.webmanifest  Nom, colors i icones per afegir-la a la pantalla d'inici
+├── icon/
+│   ├── favicon.svg           Icona principal (vectorial)
+│   ├── favicon-32.png        Icona PNG de 32 px
+│   ├── apple-touch-icon.png  Icona per a iOS (180 px)
+│   ├── icon-192.png, icon-512.png  Icones de l'aplicació
+│   ├── icon-maskable-512.png       Versió «maskable» per a Android
+│   └── maskable.svg          Original de la versió «maskable»
 ├── css/
 │   └── styles.css    Estils, temes clar i fosc, disseny adaptable
 ├── js/
@@ -224,7 +255,7 @@ Els dibuixos es desen en JSON:
 }
 ```
 
-Tipus d'element: `rectangle`, `ellipse`, `diamond`, `line`, `arrow`, `freedraw`, `text` i `image`.
+Tipus d'element: `rectangle`, `ellipse`, `diamond`, `line`, `arrow`, `freedraw`, `text`, `note` (pòsit) i `image`. Qualsevol element pot tenir `"shadow": 1` (ombra suau) o `2` (marcada) i `"link": "https://…"` (enllaç); si no en té, no porta el camp.
 
 ---
 
@@ -260,6 +291,7 @@ L'única cosa externa és la lletra **Caveat** de Google Fonts, per al text "a m
 - El text no s'ajusta automàticament dins d'una forma: el doble clic sobre una forma crea un text centrat, però és un element independent.
 - No hi ha col·laboració en temps real: l'enllaç per compartir envia una còpia del dibuix, no una sessió compartida.
 - La importació d'Excalidraw és bàsica: es conserven el gir, els grups, les imatges invertides i les fletxes enganxades (que apunten al centre de l'element), però s'ignoren els textos lligats a formes i els marcs.
+- «Enganxa» des del menú contextual necessita permís per llegir el porta-retalls. Si el navegador no el dona (o a la vista prèvia dins de Claude), enganxa l'última cosa copiada o retallada a la mateixa pissarra; per enganxar contingut d'altres aplicacions, cal `Ctrl+V`.
 - El desament automàtic depèn de l'espai del navegador (normalment uns 5 MB). Amb moltes imatges grans pot no caber-hi tot; en aquest cas, l'aplicació avisa i convé desar el dibuix a un fitxer.
 
 ---

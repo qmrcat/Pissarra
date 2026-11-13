@@ -132,6 +132,77 @@
   }
   function clearMetrics() { metricsCache.clear(); }
 
+  /* ---------------- Pòsits ---------------- */
+  const NOTE_FILL = '#ffec99';
+  /** Marge interior del pòsit (creix una mica amb la mida de la lletra). */
+  const notePad = (el) => Math.round(10 + (el.fontSize || 20) * 0.4);
+  /** Mida del plec de la cantonada inferior dreta. */
+  const noteFold = (el) => Math.max(0, Math.min(22, el.w * 0.14, el.h * 0.14));
+
+  /** Parteix una paraula massa llarga en trossos que hi càpiguen. */
+  function breakWord(word, maxW, out) {
+    let cur = '';
+    for (const ch of word) {
+      if (cur && mctx.measureText(cur + ch).width > maxW) { out.push(cur); cur = ch; } else cur += ch;
+    }
+    return cur;
+  }
+  /**
+   * Ajusta el text a l'amplada maxW (com el CSS «pre-wrap»): talla pels espais,
+   * els espais del final de línia no compten i les paraules massa llargues es parteixen.
+   */
+  function wrapText(text, fontSize, family, maxW) {
+    mctx.font = fontString(fontSize, family);
+    maxW = Math.max(1, maxW);
+    const out = [];
+    for (const para of String(text).split('\n')) {
+      const toks = para.match(/\s+|\S+/g) || [];
+      let line = '';
+      for (const tok of toks) {
+        if (/^\s+$/.test(tok)) { line += tok; continue; }
+        const cand = line + tok;
+        if (mctx.measureText(cand).width <= maxW) { line = cand; continue; }
+        if (line.trim()) out.push(line.replace(/\s+$/, ''));
+        else if (line) { /* només espais: es descarten */ }
+        line = mctx.measureText(tok).width > maxW ? breakWord(tok, maxW, out) : tok;
+      }
+      out.push(line.replace(/\s+$/, ''));
+    }
+    return out;
+  }
+  function noteLines(el) {
+    const c = cacheFor(el);
+    if (!c.lines) c.lines = wrapText(el.text || '', el.fontSize, el.fontFamily, el.w - notePad(el) * 2);
+    return c.lines;
+  }
+  /** Alçada mínima perquè hi càpiga tot el text del pòsit. */
+  function noteMinHeight(el, text) {
+    const lines = text == null ? noteLines(el) : wrapText(text, el.fontSize, el.fontFamily, el.w - notePad(el) * 2);
+    return Math.ceil(lines.length * el.fontSize * LH + notePad(el) * 2);
+  }
+  function notePaths(el) {
+    const c = cacheFor(el);
+    if (!c.np) {
+      const w = el.w, h = el.h, f = noteFold(el);
+      c.np = {
+        body: 'M0 0H' + w + 'V' + (h - f) + 'L' + (w - f) + ' ' + h + 'H0Z',
+        fold: f ? 'M' + (w - f) + ' ' + h + 'L' + (w - f) + ' ' + (h - f) + 'L' + w + ' ' + (h - f) + 'Z' : '',
+        band: 'M0 0H' + w + 'V' + Math.min(h * 0.12, 14) + 'H0Z',
+      };
+    }
+    return c.np;
+  }
+
+  /* ---------------- Ombres ---------------- */
+  const SHADOWS = {
+    1: { dx: 2, dy: 4, blur: 12, a: 0.22, ad: 0.6 },   // suau
+    2: { dx: 5, dy: 10, blur: 26, a: 0.34, ad: 0.8 },  // marcada
+  };
+  const shadowOf = (el) => (el.shadow && SHADOWS[el.shadow]) || null;
+  const shadowColor = (sh, theme) => 'rgba(0,0,0,' + (theme === 'dark' ? sh.ad : sh.a) + ')';
+  /** Espai que ocupa l'ombra fora de l'element (en unitats del món). */
+  const shadowReach = (sh) => sh.blur * 1.5 + Math.max(sh.dx, sh.dy);
+
   /* ---------------- Geometria i memòria cau ---------------- */
   const LINEAR = { line: 1, arrow: 1 };
 
@@ -275,6 +346,9 @@
       case 'text':
         ops.push({ t: 'text' });
         break;
+      case 'note':
+        ops.push({ t: 'note' });
+        break;
       case 'image':
         ops.push({ t: 'image' });
         break;
@@ -362,6 +436,35 @@
     for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], el.w * f, i * lh + bo);
   }
 
+  function drawNote(ctx, el, theme, stroke) {
+    const np = notePaths(el);
+    const fill = themeColor(el.fill && el.fill !== 'transparent' ? el.fill : NOTE_FILL, theme);
+    const body = new Path2D(np.body);
+    ctx.fillStyle = fill;
+    ctx.fill(body);
+    // Franja adhesiva i plec de la cantonada, una mica més foscos
+    ctx.fillStyle = theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.035)';
+    ctx.fill(new Path2D(np.band));
+    if (np.fold) {
+      ctx.fillStyle = fill;
+      const fold = new Path2D(np.fold);
+      ctx.fill(fold);
+      ctx.fillStyle = theme === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.13)';
+      ctx.fill(fold);
+    }
+    if (el._editing) return;
+    const lines = noteLines(el);
+    const fs = el.fontSize, lh = fs * LH, pad = notePad(el);
+    const f = el.textAlign === 'center' ? 0.5 : el.textAlign === 'right' ? 1 : 0;
+    ctx.font = fontString(fs, el.fontFamily);
+    ctx.fillStyle = stroke;
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = el.textAlign || 'left';
+    const bo = baselineOffset(fs, el.fontFamily);
+    const x = pad + (el.w - pad * 2) * f;
+    for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], x, pad + i * lh + bo);
+  }
+
   function drawImage(ctx, el, theme, opts) {
     const e = getImg(el.fileId, opts.files, opts.onImageLoad);
     if (e && e.ok) {
@@ -386,8 +489,59 @@
     ctx.setLineDash([]);
   }
 
+  /**
+   * Pinta l'element amb ombra: primer en una capa a part i després la capa amb l'ombra,
+   * perquè el fons i el traç facin una sola ombra (si no, se sumarien i quedaria una vora fosca).
+   */
+  let layer = null;
+  function drawWithShadow(ctx, el, theme, opts, sh) {
+    if (!ctx.getTransform) return false;
+    const m = ctx.getTransform();
+    const scale = Math.hypot(m.a, m.b) || 1;
+    const b = getBounds(el);
+    const pad = (el.strokeWidth || 1) * 2 + 4;
+    const reach = shadowReach(sh) * scale;
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    for (const [px, py] of [[b.x - pad, b.y - pad], [b.x + b.w + pad, b.y - pad], [b.x - pad, b.y + b.h + pad], [b.x + b.w + pad, b.y + b.h + pad]]) {
+      const dx = m.a * px + m.c * py + m.e, dy = m.b * px + m.d * py + m.f;
+      x1 = Math.min(x1, dx); y1 = Math.min(y1, dy); x2 = Math.max(x2, dx); y2 = Math.max(y2, dy);
+    }
+    // Només la part que pot arribar a veure's (amb l'ombra inclosa)
+    const cw = ctx.canvas.width, ch = ctx.canvas.height;
+    x1 = Math.floor(Math.max(x1, -reach)); y1 = Math.floor(Math.max(y1, -reach));
+    x2 = Math.ceil(Math.min(x2, cw + reach)); y2 = Math.ceil(Math.min(y2, ch + reach));
+    const w = x2 - x1, h = y2 - y1;
+    if (w <= 0 || h <= 0) return true;
+    if (w * h > 6e7) return false;
+    if (!layer) layer = document.createElement('canvas');
+    if (layer.width < w || layer.height < h) {
+      layer.width = Math.max(layer.width, w);
+      layer.height = Math.max(layer.height, h);
+    }
+    const lc = layer.getContext('2d');
+    lc.setTransform(1, 0, 0, 1, 0, 0);
+    lc.clearRect(0, 0, w, h);
+    lc.setTransform(m.a, m.b, m.c, m.d, m.e - x1, m.f - y1);
+    drawElementRaw(lc, el, theme, opts);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.shadowColor = shadowColor(sh, theme);
+    ctx.shadowBlur = sh.blur * scale;
+    ctx.shadowOffsetX = sh.dx * scale;
+    ctx.shadowOffsetY = sh.dy * scale;
+    ctx.drawImage(layer, 0, 0, w, h, x1, y1, w, h);
+    ctx.restore();
+    return true;
+  }
+
   function drawElement(ctx, el, theme, opts) {
     opts = opts || {};
+    const sh = shadowOf(el);
+    if (sh && drawWithShadow(ctx, el, theme, opts, sh)) return;
+    drawElementRaw(ctx, el, theme, opts);
+  }
+
+  function drawElementRaw(ctx, el, theme, opts) {
     const ops = getOps(el);
     ctx.save();
     const a = el.angle || 0;
@@ -445,6 +599,9 @@
         case 'text':
           drawText(ctx, el, stroke);
           break;
+        case 'note':
+          drawNote(ctx, el, theme, stroke);
+          break;
         case 'image':
           drawImage(ctx, el, theme, opts);
           break;
@@ -457,7 +614,11 @@
   function exportFrame(els, pad) {
     const b = sceneBounds(els);
     let extra = 0;
-    for (const el of els) extra = Math.max(extra, (el.strokeWidth || 1) * 2);
+    for (const el of els) {
+      extra = Math.max(extra, (el.strokeWidth || 1) * 2);
+      const sh = shadowOf(el);
+      if (sh) extra = Math.max(extra, shadowReach(sh));
+    }
     pad += extra;
     return { b, pad, w: Math.ceil(b.w + pad * 2), h: Math.ceil(b.h + pad * 2) };
   }
@@ -520,6 +681,7 @@
     const ox = pad - b.x, oy = pad - b.y;
     let body = '';
     let clipN = 0;
+    let shN = 0;
     let usesHand = false;
     for (const el of els) {
       const stroke = themeColor(el.stroke, theme);
@@ -548,6 +710,21 @@
             g += '<text x="' + n2(el.w * f) + '" y="' + n2(i * lh + bo) + '" font-family="' + esc(FONTS[el.fontFamily] || FONTS.hand) +
               '" font-size="' + fs + '" fill="' + stroke + '" text-anchor="' + anchor + '" xml:space="preserve">' + esc(ln) + '</text>';
           });
+        } else if (op.t === 'note') {
+          if (el.fontFamily === 'hand' || !FONTS[el.fontFamily]) usesHand = true;
+          const np = notePaths(el);
+          const nf = themeColor(el.fill && el.fill !== 'transparent' ? el.fill : NOTE_FILL, theme);
+          g += '<path d="' + np.body + '" fill="' + nf + '"/>' +
+            '<path d="' + np.band + '" fill="' + (theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.035)') + '"/>';
+          if (np.fold) g += '<path d="' + np.fold + '" fill="' + nf + '"/><path d="' + np.fold + '" fill="' + (theme === 'dark' ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.13)') + '"/>';
+          const fs = el.fontSize, lh = fs * LH, pad = notePad(el);
+          const f = el.textAlign === 'center' ? 0.5 : el.textAlign === 'right' ? 1 : 0;
+          const anchor = f === 0.5 ? 'middle' : f === 1 ? 'end' : 'start';
+          const bo = baselineOffset(fs, el.fontFamily);
+          noteLines(el).forEach((ln, i) => {
+            g += '<text x="' + n2(pad + (el.w - pad * 2) * f) + '" y="' + n2(pad + i * lh + bo) + '" font-family="' + esc(FONTS[el.fontFamily] || FONTS.hand) +
+              '" font-size="' + fs + '" fill="' + stroke + '" text-anchor="' + anchor + '" xml:space="preserve">' + esc(ln) + '</text>';
+          });
         } else if (op.t === 'image') {
           const src = files[el.fileId];
           const flip = el.flipX || el.flipY
@@ -556,7 +733,20 @@
           if (src) g += '<image href="' + esc(src) + '" x="0" y="0" width="' + n2(el.w) + '" height="' + n2(el.h) + '" preserveAspectRatio="none"' + flip + '/>';
         }
       }
-      body += g + '</g>';
+      g += '</g>';
+      // L'enllaç de l'element es conserva a l'SVG (només adreces web, de correu o de telèfon)
+      if (el.link && /^(https?:|mailto:|tel:)/i.test(el.link)) g = '<a href="' + esc(el.link) + '" target="_blank">' + g + '</a>';
+      const sh = shadowOf(el);
+      if (sh) {
+        // Ombra amb un filtre en coordenades del document (les línies no tenen alçada pròpia)
+        const eb = getBounds(el), r = shadowReach(sh) + (el.strokeWidth || 1) * 2;
+        const id = 'sh' + shN++;
+        g = '<filter id="' + id + '" filterUnits="userSpaceOnUse" x="' + n2(eb.x + ox - r) + '" y="' + n2(eb.y + oy - r) +
+          '" width="' + n2(eb.w + r * 2) + '" height="' + n2(eb.h + r * 2) + '" color-interpolation-filters="sRGB">' +
+          '<feDropShadow dx="' + sh.dx + '" dy="' + sh.dy + '" stdDeviation="' + sh.blur / 2 + '" flood-color="#000" flood-opacity="' +
+          (theme === 'dark' ? sh.ad : sh.a) + '"/></filter><g filter="url(#' + id + ')">' + g + '</g>';
+      }
+      body += g;
     }
     const style = usesHand
       ? '<style>@import url("https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&amp;display=swap");</style>'
@@ -572,6 +762,7 @@
   global.PissarraRender = {
     LH, FONTS, THEMES,
     themeColor, canvasBg, isDarkColor, measureText, clearMetrics, baselineOffset,
+    NOTE_FILL, notePad, wrapText, noteLines, noteMinHeight,
     getOps, getBounds, rawBounds, elCenter, sceneBounds, linearSamples, freedrawWidth,
     drawElement, drawBackgroundImage, preloadImages, renderToCanvas, toSVG,
   };

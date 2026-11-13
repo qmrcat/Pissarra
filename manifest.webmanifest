@@ -1,0 +1,16 @@
+{
+  "name": "Pissarra",
+  "short_name": "Pissarra",
+  "description": "Pissarra blanca virtual per fer esbossos a mà alçada.",
+  "lang": "ca",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#121316",
+  "theme_color": "#121316",
+  "icons": [
+    { "src": "icon/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
