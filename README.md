@@ -77,6 +77,15 @@ Està feta amb **HTML, CSS i JavaScript purs**: sense frameworks ni llibreries i
 **Interfície**
 - **Tema fosc per defecte** i tema clar. El dibuix s'adapta al tema: els colors es desen en la versió clara i en tema fosc se n'inverteix la lluminositat mantenint el to.
 - Adaptada a **PC, tauleta i mòbil**: al mòbil la barra d'eines baixa a la part inferior (a l'abast del polze) i les opcions d'estil s'obren en un panell amb el botó «Estil».
+- **Marcs** (`F`): rectangles amb nom que agrupen una part del dibuix, com els *frames* de l'Excalidraw. Amb un clic se'n crea un de 800 × 450 (16:9); arrossegant, de la mida que vulguis. Es seleccionen clicant-ne la vora o el nom (a dins es pot seleccionar i dibuixar com sempre), i en moure'ls **s'enduen tot el que tenen a dins** (els elements que hi tenen el centre). Per canviar-los el nom: doble clic al nom, `Retorn` o «Reanomena el marc» del menú contextual. No es giren ni tenen estil; no surten a les exportacions, però si n'exportes un, s'exporta amb el seu contingut i la mida del marc.
+- **Mode presentació** (`Alt+Maj+P`, o «Presentació…» al menú): cada marc és una **diapositiva**. Al diàleg «Presentació» es poden reanomenar, reordenar, buscar al llenç o començar des de qualsevol. Si no hi ha marcs, es presenta tot el dibuix com una sola diapositiva.
+  - S'obre a pantalla completa (si el navegador ho permet), sense cap barra, i cada diapositiva ocupa tota la pantalla; el que queda fora del marc no es veu. Entre diapositives, la càmera viatja pel llenç amb una transició suau (sense animació si el sistema té activat «reduir el moviment»).
+  - Navegació: `→`, `↓`, espai, `Retorn` o `Av Pàg` per avançar; `←`, `↑`, `Re Pàg` o `Retrocés` per tornar; `Inici` i `Fi`; `F` pantalla completa; `Esc` (o sortir de la pantalla completa) per acabar. Els comandaments per a presentacions (que envien `Av Pàg` / `Re Pàg`) també funcionen. A la pantalla tàctil, llisca el dit a l'esquerra o a la dreta.
+  - Moure el ratolí mostra uns controls a baix (anterior, número i nom, següent, pantalla completa, sortir), que s'amaguen sols.
+  - **Punter làser**: arrossegant amb el ratolí o el llapis es dibuixa un traç vermell que s'esvaeix en un segon.
+  - Durant la presentació no es pot editar res. En sortir, la vista i la selecció tornen a com eren.
+- **Mode zen** (`Alt+Z`, o «Mode zen» al menú o al menú contextual): amaga el panell d'estil, el zoom i l'historial, el minimapa i els botons de dalt a la dreta, i deixa només la barra d'eines i el menú. Un botó «Surt del mode zen» a la cantonada permet tornar-hi. Es recorda en recarregar.
+- **Minimapa** (`M`, o «Minimapa» al menú): a la cantonada inferior dreta mostra tot el dibuix en petit i, amb un requadre, la part que es veu a la pantalla (la resta queda una mica enfosquida). Un clic hi porta la vista; arrossegant el requadre et mous sense salts; amb la roda fas zoom i amb doble clic es mostra tot el dibuix. Els elements s'hi dibuixen simplificats (formes, línies i franges de text) perquè es reconeguin encara que siguin molt petits. Només apareix quan hi ha alguna cosa dibuixada. Per defecte és visible a l'ordinador i la tauleta i amagat al mòbil (allà, si l'actives, surt a sobre del botó «Estil»); la preferència es desa al navegador.
 - **Posició de la barra d'eines**: al menú, «Barra d'eines» → **A dalt** o **A baix**. Per defecte és a dalt a l'ordinador i la tauleta, i a baix al mòbil; quan en tries una, s'aplica a totes les mides de pantalla i queda desada al navegador. A l'ordinador, a baix es col·loca al centre, al costat del zoom; si la finestra és estreta, el zoom i el desfés pugen a sobre de la barra perquè no se superposin.
 - **Menú contextual** amb el **botó dret** del ratolí (o un **toc llarg** a la pantalla tàctil, o `Maj+F10` / tecla de menú amb el teclat):
   - **Sobre un element o un grup** (el selecciona si no ho estava; si hi ha una selecció de diversos elements i es fa clic dret dins el seu requadre, actua sobre tota la selecció): retalla, copia, enganxa, copia com a PNG, exporta a PNG o a SVG, agrupa o desagrupa (segons el cas), capes (envia al fons, enrere, endavant, porta al davant), alinea (amb dues unitats o més), inverteix horitzontalment o verticalment, ajusta la vista a la selecció, duplica i elimina.
@@ -174,6 +183,10 @@ A **Desa a… → Enllaç per compartir → Crea l'enllaç** s'obté un enllaç 
 | Copiar la selecció (o tot) com a PNG | `Alt+Maj+C` |
 | Menú contextual | Clic dret · `Maj+F10` · tecla de menú |
 | Afegir o editar un enllaç | `Ctrl+K` |
+| Mostrar o amagar el minimapa | `M` |
+| Marc (diapositiva) | `F` |
+| Mode zen | `Alt+Z` |
+| Presentació | `Alt+Maj+P` (dins: `→` / `←`, `Esc` per sortir) |
 | Ajuda | `?` |
 
 A macOS, `Ctrl` és `Cmd`.
@@ -255,7 +268,7 @@ Els dibuixos es desen en JSON:
 }
 ```
 
-Tipus d'element: `rectangle`, `ellipse`, `diamond`, `line`, `arrow`, `freedraw`, `text`, `note` (pòsit) i `image`. Qualsevol element pot tenir `"shadow": 1` (ombra suau) o `2` (marcada) i `"link": "https://…"` (enllaç); si no en té, no porta el camp.
+Tipus d'element: `rectangle`, `ellipse`, `diamond`, `line`, `arrow`, `freedraw`, `text`, `note` (pòsit), `image` i `frame` (marc, amb `name`; l'ordre de les diapositives és l'ordre dels marcs a la llista). Qualsevol element pot tenir `"shadow": 1` (ombra suau) o `2` (marcada) i `"link": "https://…"` (enllaç); si no en té, no porta el camp.
 
 ---
 

@@ -669,6 +669,25 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 4px 0 0;
 }
 .props-toggle[aria-expanded="true"] { background: var(--active-bg); color: var(--active-text); }
 
+/* ---------- Minimapa ---------- */
+.minimap {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 200px;
+  height: 132px;
+  padding: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+.minimap[hidden] { display: none; }
+.minimap canvas { display: block; width: 100%; height: 100%; cursor: pointer; }
+.minimap.dragging canvas { cursor: grabbing; }
+@media (max-width: 640px) {
+  /* Al mòbil queda a sobre de la barra inferior (on hi ha el botó «Estil») */
+  .minimap { width: 150px; height: 100px; bottom: calc(100% + 8px); }
+}
+
 /* ---------- Editor de text ---------- */
 #text-editor {
   position: absolute;
@@ -970,6 +989,104 @@ dialog#confirm-dialog { width: min(380px, calc(100vw - 24px)); }
   :root[data-toolbar="top"] .props { bottom: calc(var(--gap) * 2 + var(--btn) + 8px + var(--safe-b)); }
   :root[data-toolbar="top"] .toast { bottom: calc(90px + var(--safe-b)); }
   :root[data-toolbar="top"] .menu { max-height: calc(100dvh - 160px - var(--safe-t) - var(--safe-b)); }
+}
+
+/* ---------- Marcs ---------- */
+.frame-name {
+  position: absolute;
+  z-index: 27;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--island);
+  color: var(--text);
+  font: 500 12.5px var(--font-ui);
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+@media (pointer: coarse) { .frame-name { font-size: 16px; height: 32px; } }
+
+/* ---------- Diàleg de la presentació ---------- */
+dialog#present-dialog { width: min(560px, calc(100vw - 24px)); }
+.present-intro, .present-empty p { margin: 0 0 12px; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
+.present-empty p { color: var(--text); }
+.present-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: min(46dvh, 380px); overflow: auto; }
+.slide-row { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 10px; background: var(--bg); }
+.slide-num { width: 26px; text-align: center; font-size: 12.5px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.slide-row input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font: 14px var(--font-ui);
+}
+.slide-row input:hover { border-color: var(--island-border); }
+.slide-row input:focus { outline: none; border-color: var(--accent); background: var(--island); }
+.slide-row .icon-btn { width: 32px; height: 32px; flex: none; }
+.slide-row .icon-btn svg { width: 17px; height: 17px; }
+.slide-row .icon-btn:disabled { opacity: 0.3; cursor: default; }
+@media (pointer: coarse) { .slide-row input { font-size: 16px; } }
+
+/* ---------- Mode presentació ---------- */
+:root.presenting .top-bar,
+:root.presenting .bottom-bar,
+:root.presenting .props,
+:root.presenting #link-bar,
+:root.presenting #link-tip,
+:root.presenting #ctx-menu,
+:root.presenting .hint,
+:root.presenting #zen-exit { display: none !important; }
+:root.presenting #canvas { cursor: default; }
+.pres-controls {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--gap) + var(--safe-b));
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  transform: translate(-50%, 8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+}
+.pres-controls.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.pres-controls .icon-btn:disabled { opacity: 0.3; cursor: default; }
+.pres-info { display: flex; flex-direction: column; align-items: center; min-width: 84px; max-width: 220px; padding: 0 8px; line-height: 1.2; }
+#pres-count { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+#pres-name { font-size: 11.5px; color: var(--muted); max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#pres-name:empty { display: none; }
+.pres-sep { width: 1px; height: 22px; margin: 0 4px; background: var(--island-border); }
+#pres-fs[aria-pressed="true"] { background: var(--active-bg); color: var(--active-text); }
+
+/* ---------- Mode zen: només la barra d'eines i el menú ---------- */
+:root.zen .props,
+:root.zen .top-right,
+:root.zen .bottom-bar,
+:root.zen #props-toggle { display: none !important; }
+.zen-exit {
+  position: absolute;
+  right: calc(var(--gap) + var(--safe-r));
+  bottom: calc(var(--gap) + var(--safe-b));
+  z-index: 21;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  color: var(--muted);
+  font: 500 13px var(--font-ui);
+  cursor: pointer;
+}
+.zen-exit:hover { color: var(--text); }
+@media (max-width: 640px) {
+  .zen-exit { bottom: calc(var(--gap) * 2 + var(--btn) + 16px + var(--safe-b)); }
+  :root[data-toolbar="top"] .zen-exit { bottom: calc(var(--gap) + var(--safe-b)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

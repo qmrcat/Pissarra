@@ -35,12 +35,12 @@
   const MIN_ZOOM = 0.1;
   const MAX_ZOOM = 30;
   const LH = R.LH;
-  const TYPES = ['rectangle', 'ellipse', 'diamond', 'line', 'arrow', 'freedraw', 'text', 'note', 'image'];
+  const TYPES = ['rectangle', 'ellipse', 'diamond', 'line', 'arrow', 'freedraw', 'text', 'note', 'image', 'frame'];
   const SHAPES = new Set(['rectangle', 'ellipse', 'diamond']);
   /** Elements amb fons (el pot de pintura i el comptagotes hi poden actuar). */
   const FILLED = new Set(['rectangle', 'ellipse', 'diamond', 'note']);
   const LINEAR = new Set(['line', 'arrow']);
-  const CREATE_TOOLS = new Set(['rectangle', 'ellipse', 'diamond', 'line', 'arrow', 'freedraw', 'text', 'note']);
+  const CREATE_TOOLS = new Set(['rectangle', 'ellipse', 'diamond', 'line', 'arrow', 'freedraw', 'text', 'note', 'frame']);
   const NOTE_SIZE = 200; // mida d'un pòsit nou creat amb un clic
   const NOTE_MIN = 40;
 
@@ -57,8 +57,8 @@
     fontSize: ['text', 'note'],
     fontFamily: ['text', 'note'],
     textAlign: ['text', 'note'],
-    shadow: TYPES,
-    opacity: TYPES,
+    shadow: TYPES.filter((t) => t !== 'frame'), // els marcs no tenen estil
+    opacity: TYPES.filter((t) => t !== 'frame'),
   };
   const appliesTo = (key, type) => (PROP_TYPES[key] || []).includes(type);
 
@@ -94,6 +94,8 @@
     background: null, // color de fons de la pissarra (null: el del tema)
     fileName: null, // nom (sense extensió) amb què s'ha desat o obert el dibuix
     toolbarPos: null, // posició de la barra d'eines: 'top', 'bottom' o null (segons la pantalla)
+    minimap: null, // minimapa visible: true, false o null (segons la pantalla)
+    zen: false, // mode zen: només la barra d'eines i el menú
     recentColors: [], // últims colors triats amb el selector
     bgImage: null, // imatge de fons de la pissarra: { fileId, mode, opacity, w, h }
     view: { x: 0, y: 0, zoom: 1 },
@@ -139,6 +141,11 @@
       groupIds: currentGroupPath(),
     };
     if (type === 'text') Object.assign(el, { text: '', fontSize: st.fontSize, fontFamily: st.fontFamily, textAlign: st.textAlign });
+    if (type === 'frame') {
+      Object.assign(el, { name: 'Diapositiva ' + (S.elements.filter((e) => e.type === 'frame').length + 1), fill: 'transparent', stroke: '#868e96' });
+      delete el.shadow;
+      return Object.assign(el, extra || {});
+    }
     if (type === 'note') {
       Object.assign(el, {
         text: '', fontSize: st.fontSize, fontFamily: st.fontFamily, textAlign: st.textAlign,
@@ -210,6 +217,13 @@
       if (!el.fill || out.fill === 'transparent') out.fill = R.NOTE_FILL;
       out.fillStyle = 'solid';
     }
+    if (out.type === 'frame') {
+      out.name = String(out.name == null ? 'Marc' : out.name).slice(0, 80) || 'Marc';
+      out.angle = 0;
+      out.w = Math.max(20, Math.abs(out.w || FRAME_W));
+      out.h = Math.max(20, Math.abs(out.h || FRAME_H));
+      out.shadow = 0;
+    }
     out.shadow = [1, 2].includes(+out.shadow) ? +out.shadow : 0;
     if (!out.shadow) delete out.shadow;
     if (LINEAR.has(out.type) || out.type === 'freedraw') {
@@ -261,7 +275,7 @@
       v: 1,
       elements: serialize(S.elements),
       files: sceneFiles(),
-      app: { theme: S.theme, grid: S.grid, view: S.view, style: S.style, locked: S.locked, nudge: S.nudge, background: S.background, recentColors: S.recentColors, bgImage: S.bgImage, fileName: S.fileName, toolbarPos: S.toolbarPos },
+      app: { theme: S.theme, grid: S.grid, view: S.view, style: S.style, locked: S.locked, nudge: S.nudge, background: S.background, recentColors: S.recentColors, bgImage: S.bgImage, fileName: S.fileName, toolbarPos: S.toolbarPos, minimap: S.minimap, zen: S.zen },
     };
     if (storage.set(JSON.stringify(data))) return;
     // Si no hi cap (imatges grans), es desa almenys el dibuix sense imatges
@@ -294,6 +308,8 @@
       if (a.style) for (const k in S.style) if (a.style[k] !== undefined) S.style[k] = a.style[k];
       if (typeof a.fileName === 'string') S.fileName = cleanFileName(a.fileName) || null;
       if (a.toolbarPos === 'top' || a.toolbarPos === 'bottom') S.toolbarPos = a.toolbarPos;
+      if (typeof a.minimap === 'boolean') S.minimap = a.minimap;
+      S.zen = a.zen === true;
     } catch (e) {
       console.warn('Pissarra: no s\'ha pogut llegir el dibuix desat', e);
     }
@@ -734,6 +750,7 @@
     canvas.width = Math.max(1, Math.round(W * DPR));
     canvas.height = Math.max(1, Math.round(H * DPR));
     if (editing) positionEditor();
+    if (pres && !pres.anim) { S.view = viewFor(slideRect(pres.slides[pres.i])); pres.rect = slideRect(pres.slides[pres.i]); }
     render();
   }
 
@@ -752,17 +769,22 @@
     ctx.save();
     ctx.translate(S.view.x, S.view.y);
     ctx.scale(z, z);
+    if (!pres) drawFrames(vx1, vy1, vx2, vy2);
     for (const el of S.elements) {
       if (el._editing && el.type === 'text') continue;
+      if (el.type === 'frame') continue;
       const b = R.getBounds(el);
       if (b.x > vx2 + m || b.y > vy2 + m || b.x + b.w < vx1 - m || b.y + b.h < vy1 - m) continue;
       R.drawElement(ctx, el, S.theme, { files, faded: erasing.has(el.id), onImageLoad: requestRender, ghost: true, zoom: S.view.zoom });
     }
     ctx.restore();
+    if (pres) drawPresMask(); else drawFrameLabels();
     drawLinkBadges(th);
-    drawOverlay(th);
+    if (!pres) drawOverlay(th);
     syncLinkBar();
-    $('#hint').classList.toggle('show', S.elements.length === 0 && !editing);
+    renderMinimap();
+    drawLaser();
+    $('#hint').classList.toggle('show', S.elements.length === 0 && !editing && !pres);
   }
 
   function drawGrid(th) {
@@ -844,7 +866,7 @@
       if (f.w * z > 44) hs.push({ id: 'n', u: f.w / 2, v: -p }, { id: 's', u: f.w / 2, v: f.h + p });
       if (f.h * z > 44) hs.push({ id: 'w', u: -p, v: f.h / 2 }, { id: 'e', u: f.w + p, v: f.h / 2 });
     }
-    hs.push({ id: 'rot', u: f.w / 2, v: -p - ROT_GAP / z });
+    if (!sel.some(isFrame)) hs.push({ id: 'rot', u: f.w / 2, v: -p - ROT_GAP / z });
     return hs.map((h) => {
       const [x, y] = framePt(f, h.u, h.v);
       return { id: h.id, x, y, angle: f.angle };
@@ -1082,6 +1104,14 @@
         return distPolyline(lx, ly, R.linearSamples(el)) <= t;
       case 'freedraw':
         return distPolyline(lx, ly, el.points) <= t + R.freedrawWidth(sw) / 2;
+      case 'frame': {
+        // Un marc només es toca per la vora (a dins es pot seleccionar el que conté)
+        const inside = lx >= 0 && ly >= 0 && lx <= el.w && ly <= el.h;
+        const d = inside
+          ? Math.min(lx, ly, el.w - lx, el.h - ly)
+          : Math.hypot(Math.max(-lx, 0, lx - el.w), Math.max(-ly, 0, ly - el.h));
+        return d <= tol;
+      }
       default:
         return lx >= -tol && ly >= -tol && lx <= el.w + tol && ly <= el.h + tol;
     }
@@ -1089,6 +1119,8 @@
 
   function hitTest(wx, wy) {
     const tol = (touchy() ? 12 : 6) / S.view.zoom;
+    const lbl = frameLabelAt(...toScreen(wx, wy));
+    if (lbl) return lbl;
     for (let i = S.elements.length - 1; i >= 0; i--) {
       if (hitElement(S.elements[i], wx, wy, tol)) return S.elements[i];
     }
@@ -1247,6 +1279,8 @@
     e.preventDefault();
     closeMenu();
     const [sx, sy] = evPos(e);
+    if (pres) { presPointerDown(e, sx, sy); return; }
+    if (renamingFrameId) endRenameFrame(true);
     pointers.set(e.pointerId, { x: sx, y: sy });
     try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* res */ }
     closeCtxMenu();
@@ -1355,6 +1389,7 @@
         return;
       }
       if (hit && (hit.type === 'text' || hit.type === 'note')) { startEditText(hit, false); drag = { type: 'focus' }; return; }
+      if (hit && hit.type === 'frame') { setSelection([hit.id]); startRenameFrame(hit); drag = { type: 'focus' }; return; }
       // Doble clic sobre una forma (o al seu interior, encara que no tingui fons): text centrat
       const shape = hit && SHAPES.has(hit.type) ? hit
         : !hit ? S.elements.slice().reverse().find((el) => SHAPES.has(el.type) && insideShape(el, wx, wy)) : null;
@@ -1394,6 +1429,7 @@
   function onPointerMove(e) {
     const rect = canvas.getBoundingClientRect();
     const [sx, sy] = evPos(e, rect);
+    if (pres) { presPointerMove(e, sx, sy); return; }
     if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: sx, y: sy });
     moveLongPress(e);
     const [wx, wy] = toWorld(sx, sy);
@@ -1425,6 +1461,7 @@
   function onPointerUp(e) {
     pointers.delete(e.pointerId);
     clearLongPress();
+    if (pres) { presPointerUp(e, ...evPos(e)); return; }
     if (!drag) {
       if (editing) ta.focus({ preventScroll: true });
       return;
@@ -1603,6 +1640,23 @@
 
   function finishCreate(d) {
     const el = d.el;
+    if (el.type === 'frame') {
+      // Amb un clic, un marc 16:9 centrat al punt
+      if (Math.max(el.w, el.h) * S.view.zoom < 8) {
+        el.w = FRAME_W;
+        el.h = FRAME_H;
+        el.x = snapV(d.x0 - FRAME_W / 2);
+        el.y = snapV(d.y0 - FRAME_H / 2);
+      } else {
+        el.w = Math.max(20, el.w);
+        el.h = Math.max(20, el.h);
+      }
+      bump(el);
+      if (!S.locked) setTool('selection');
+      setSelection([el.id]);
+      commit();
+      return;
+    }
     if (el.type === 'note') {
       // Amb un clic, un pòsit de mida estàndard centrat al punt; arrossegant, la mida triada
       if (Math.max(el.w, el.h) * S.view.zoom < 8) {
@@ -1633,10 +1687,12 @@
   /* --- Moure --- */
   function startMove(wx, wy, alt) {
     const sel = selectedEls();
+    // Els marcs s'enduen el que tenen a dins
+    const moving = alt ? sel : withFrameChildren(sel);
     drag = {
       type: 'move', x0: wx, y0: wy, moved: false, alt,
       box: selectionBounds(),
-      origs: new Map(sel.map((el) => [el.id, { x: el.x, y: el.y }])),
+      origs: new Map(moving.map((el) => [el.id, { x: el.x, y: el.y }])),
     };
   }
   function moveSelection(wx, wy) {
@@ -1645,7 +1701,7 @@
       if (Math.hypot(dx, dy) * S.view.zoom < 3) return;
       drag.moved = true;
       // Les fletxes que es mouen sense l'element on estan enganxades se'n desenganxen
-      if (!drag.alt) drag.detached = detachOutside(selectedEls());
+      if (!drag.alt) drag.detached = detachOutside(Array.from(drag.origs.keys()).map(byId).filter(Boolean));
       if (drag.alt) {
         // Alt + arrossegar: duplica i mou la còpia
         const sel = selectedEls();
@@ -1870,6 +1926,7 @@
     if (editing) commitText();
     const sel = selectedEls();
     if (!sel.length) return;
+    if (sel.some(isFrame)) { toast('Els marcs no es poden girar'); return; }
     const [cx, cy] = rotationCenter(sel);
     detachOutside(sel);
     rotateEls(new Map(sel.map((el) => [el.id, cloneEl(el)])), cx, cy, d);
@@ -1974,6 +2031,7 @@
   /* --- Roda del ratolí / trackpad --- */
   canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
+    if (pres) return;
     const [sx, sy] = evPos(e);
     let dx = e.deltaX, dy = e.deltaY;
     if (e.deltaMode === 1) { dx *= 16; dy *= 16; } else if (e.deltaMode === 2) { dx *= H; dy *= H; }
@@ -2485,6 +2543,8 @@
     $('#redo-btn').disabled = history.index >= history.stack.length - 1;
     $('#zoom-label').textContent = Math.round(S.view.zoom * 100) + '%';
     $('#menu-grid').setAttribute('aria-checked', String(S.grid));
+    $('#menu-minimap').setAttribute('aria-checked', String(minimapOn()));
+    $('#menu-zen').setAttribute('aria-checked', String(!!S.zen));
     updateNudgeUI();
     updateProps();
   }
@@ -3049,6 +3109,10 @@
       case 'export': openExport(); break;
       case 'image': openImagePicker(); break;
       case 'grid': toggleGrid(); break;
+      case 'minimap': toggleMinimap(); break;
+      case 'present': startPresentation(0); break;
+      case 'present-dialog': openPresentDialog(); break;
+      case 'zen': toggleZen(); break;
       case 'theme': toggleTheme(); break;
       case 'fit': fitToContent(); break;
       case 'clear': clearCanvas(); break;
@@ -3125,7 +3189,7 @@
   const TOOL_KEYS = {
     v: 'selection', 1: 'selection', h: 'hand', r: 'rectangle', 2: 'rectangle', d: 'diamond', 3: 'diamond',
     o: 'ellipse', 4: 'ellipse', a: 'arrow', 5: 'arrow', l: 'line', 6: 'line', p: 'freedraw', 7: 'freedraw',
-    t: 'text', 8: 'text', n: 'note', 9: 'image', e: 'eraser', 0: 'eraser', b: 'bucket', i: 'eyedropper',
+    t: 'text', 8: 'text', n: 'note', f: 'frame', 9: 'image', e: 'eraser', 0: 'eraser', b: 'bucket', i: 'eyedropper',
   };
   function isTypingTarget(t) {
     if (!t) return false;
@@ -3134,6 +3198,7 @@
   }
 
   window.addEventListener('keydown', (e) => {
+    if (pres) { if (!presBar.contains(e.target) || (e.key !== 'Enter' && e.key !== ' ')) presKey(e); return; }
     if (isTypingTarget(e.target)) return;
     if ($('dialog[open]')) return;
     const mod = e.ctrlKey || e.metaKey;
@@ -3166,6 +3231,8 @@
     if (e.altKey && e.shiftKey && e.code === 'KeyD') { e.preventDefault(); toggleTheme(); return; }
     if (e.altKey && e.shiftKey && e.code === 'KeyR') { e.preventDefault(); rotateSelectedBy(-Math.PI / 2); return; }
     if (e.altKey && e.shiftKey && e.code === 'KeyC') { e.preventDefault(); copyAsPng(); return; }
+    if (e.altKey && e.shiftKey && e.code === 'KeyP') { e.preventDefault(); startPresentation(0); return; }
+    if (e.altKey && !e.shiftKey && !mod && e.code === 'KeyZ') { e.preventDefault(); toggleZen(); return; }
     if (e.shiftKey && e.code === 'Digit1') { e.preventDefault(); fitToContent(); return; }
     if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); ctxFromKeyboard(); return; }
     if (e.altKey) return;
@@ -3190,6 +3257,7 @@
       case 'Enter': {
         const sel = selectedEls();
         if (sel.length === 1 && (sel[0].type === 'text' || sel[0].type === 'note')) { e.preventDefault(); startEditText(sel[0], false); }
+        else if (sel.length === 1 && sel[0].type === 'frame') { e.preventDefault(); startRenameFrame(sel[0]); }
         return;
       }
       case 'ArrowLeft': case 'ArrowRight': case 'ArrowUp': case 'ArrowDown': {
@@ -3215,6 +3283,7 @@
     if (e.shiftKey || drag) return;
     if (k === 'q') { toggleLock(); return; }
     if (k === 'g') { toggleGrid(); return; }
+    if (k === 'm') { toggleMinimap(); return; }
     const tool = TOOL_KEYS[k];
     if (tool) setTool(tool);
   });
@@ -3397,7 +3466,7 @@
     const tb = toolbar.getBoundingClientRect();
     if (tb.top - ar.top > H / 2) bottom = Math.min(bottom, tb.top - ar.top);
     else top = Math.max(top, tb.bottom - ar.top);
-    for (const g of $$('.bottom-bar > *')) {
+    for (const g of $$('.bottom-bar > :not(.minimap)')) {
       const r = g.getBoundingClientRect();
       if (r.height) bottom = Math.min(bottom, r.top - ar.top);
     }
@@ -3519,7 +3588,605 @@
     applyToolbarPos();
     saveSoon();
   });
-  if (mqPhone.addEventListener) mqPhone.addEventListener('change', applyToolbarPos);
+  if (mqPhone.addEventListener) mqPhone.addEventListener('change', () => { applyToolbarPos(); updateUI(); });
+
+  /* =========================================================
+   * Marcs (diapositives)
+   * ========================================================= */
+  const FRAME_W = 800, FRAME_H = 450; // marc nou creat amb un clic (16:9)
+  const isFrame = (el) => el && el.type === 'frame';
+  const framesList = () => S.elements.filter(isFrame);
+  /** Elements que pertanyen al marc: els que tenen el centre a dins. */
+  function frameChildren(f) {
+    const out = [];
+    for (const el of S.elements) {
+      if (isFrame(el) || el.id === f.id) continue;
+      const b = R.getBounds(el);
+      const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+      if (cx >= f.x && cx <= f.x + f.w && cy >= f.y && cy <= f.y + f.h) out.push(el);
+    }
+    return out;
+  }
+  /** Afegeix el contingut dels marcs de la llista (per moure'ls o exportar-los junts). */
+  function withFrameChildren(els) {
+    const ids = new Set(els.map((e) => e.id));
+    const out = els.slice();
+    for (const f of els) {
+      if (!isFrame(f)) continue;
+      for (const c of frameChildren(f)) if (!ids.has(c.id)) { ids.add(c.id); out.push(c); }
+    }
+    return out;
+  }
+  function frameColors() {
+    return S.theme === 'dark'
+      ? { line: 'rgba(255,255,255,0.32)', label: '#a3a6ae' }
+      : { line: 'rgba(0,0,0,0.28)', label: '#6b6f78' };
+  }
+  /** Vores dels marcs (dins de la transformació del món), per sota de tots els elements. */
+  function drawFrames(vx1, vy1, vx2, vy2) {
+    const fc = frameColors();
+    const z = S.view.zoom;
+    ctx.lineWidth = 1 / z;
+    ctx.strokeStyle = fc.line;
+    for (const f of S.elements) {
+      if (!isFrame(f)) continue;
+      if (f.x > vx2 || f.y > vy2 || f.x + f.w < vx1 || f.y + f.h < vy1) continue;
+      const r = Math.min(8 / z, f.w / 4, f.h / 4);
+      ctx.beginPath();
+      ctx.roundRect ? ctx.roundRect(f.x, f.y, f.w, f.h, r) : ctx.rect(f.x, f.y, f.w, f.h);
+      ctx.stroke();
+    }
+  }
+  /** Noms dels marcs a sobre de la cantonada (mida fixa a la pantalla). */
+  let frameLabels = [];
+  function drawFrameLabels() {
+    frameLabels = [];
+    const fc = frameColors();
+    ctx.font = '500 12px ' + R.FONTS.normal;
+    ctx.textBaseline = 'bottom';
+    ctx.textAlign = 'left';
+    for (const f of S.elements) {
+      if (!isFrame(f) || f.id === renamingFrameId) continue;
+      const [sx, sy] = toScreen(f.x, f.y);
+      const maxW = Math.max(30, f.w * S.view.zoom);
+      if (sx > W || sy < -20 || sy > H + 20 || sx + maxW < 0) continue;
+      let name = f.name || 'Marc';
+      while (name.length > 1 && ctx.measureText(name).width > maxW) name = name.slice(0, -2) + '…';
+      const w = ctx.measureText(name).width;
+      ctx.fillStyle = S.selected.has(f.id) ? R.THEMES[S.theme].accent : fc.label;
+      ctx.fillText(name, sx, sy - 5);
+      frameLabels.push({ el: f, x1: sx - 2, y1: sy - 22, x2: sx + w + 2, y2: sy - 1 });
+    }
+  }
+  function frameLabelAt(sx, sy) {
+    for (let i = frameLabels.length - 1; i >= 0; i--) {
+      const l = frameLabels[i];
+      if (sx >= l.x1 && sx <= l.x2 && sy >= l.y1 && sy <= l.y2) return l.el;
+    }
+    return null;
+  }
+
+  /* --- Reanomenar un marc (camp sobre el nom) --- */
+  const frameNameInput = $('#frame-name');
+  let renamingFrameId = null;
+  function startRenameFrame(f) {
+    if (!f) return;
+    if (editing) commitText();
+    renamingFrameId = f.id;
+    const [sx, sy] = toScreen(f.x, f.y);
+    frameNameInput.value = f.name || '';
+    frameNameInput.hidden = false;
+    frameNameInput.style.left = Math.max(4, sx - 4) + 'px';
+    frameNameInput.style.top = Math.max(4, sy - 28) + 'px';
+    frameNameInput.style.width = clamp(f.w * S.view.zoom, 140, 320) + 'px';
+    frameNameInput.focus();
+    frameNameInput.select();
+    requestRender();
+  }
+  function endRenameFrame(save) {
+    if (!renamingFrameId) return;
+    const f = byId(renamingFrameId);
+    renamingFrameId = null;
+    frameNameInput.hidden = true;
+    const v = frameNameInput.value.trim().slice(0, 80);
+    if (save && f && v && v !== f.name) { f.name = v; commit(); }
+    requestRender();
+  }
+  frameNameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); endRenameFrame(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); endRenameFrame(false); }
+  });
+  frameNameInput.addEventListener('blur', () => endRenameFrame(true));
+
+  /* =========================================================
+   * Diàleg de la presentació (ordre i noms de les diapositives)
+   * ========================================================= */
+  const dlgPres = $('#present-dialog');
+  const presList = $('#present-list');
+  function openPresentDialog() {
+    closeMenu();
+    closeCtxMenu();
+    if (editing) commitText();
+    renderPresentList();
+    dlgPres.showModal();
+  }
+  function renderPresentList() {
+    const frames = framesList();
+    presList.textContent = '';
+    $('#present-empty').hidden = frames.length > 0;
+    presList.hidden = !frames.length;
+    $('#present-start').textContent = frames.length ? 'Comença la presentació' : 'Presenta tot el dibuix';
+    $('#present-start').disabled = !S.elements.length;
+    frames.forEach((f, i) => {
+      const li = document.createElement('li');
+      li.className = 'slide-row';
+      li.innerHTML =
+        '<span class="slide-num"></span>' +
+        '<input type="text" maxlength="80" spellcheck="false" aria-label="Nom de la diapositiva">' +
+        '<button type="button" class="icon-btn" data-sl="up" title="Puja" aria-label="Puja"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>' +
+        '<button type="button" class="icon-btn" data-sl="down" title="Baixa" aria-label="Baixa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg></button>' +
+        '<button type="button" class="icon-btn" data-sl="go" title="Mostra-la al llenç" aria-label="Mostra-la al llenç"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>' +
+        '<button type="button" class="icon-btn" data-sl="play" title="Presenta des d\'aquí" aria-label="Presenta des d\'aquí"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>';
+      li.dataset.id = f.id;
+      $('.slide-num', li).textContent = String(i + 1);
+      const inp = $('input', li);
+      inp.value = f.name || '';
+      inp.addEventListener('change', () => {
+        const v = inp.value.trim().slice(0, 80);
+        if (v && v !== f.name) { f.name = v; commit(); requestRender(); } else inp.value = f.name || '';
+      });
+      $('[data-sl="up"]', li).disabled = i === 0;
+      $('[data-sl="down"]', li).disabled = i === frames.length - 1;
+      presList.appendChild(li);
+    });
+  }
+  /** Canvia l'ordre de dues diapositives (intercanvia la posició dels marcs a la llista). */
+  function swapFrames(a, b) {
+    const ia = S.elements.indexOf(a), ib = S.elements.indexOf(b);
+    if (ia < 0 || ib < 0) return;
+    S.elements[ia] = b;
+    S.elements[ib] = a;
+    commit();
+  }
+  presList.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-sl]');
+    if (!btn) return;
+    const li = btn.closest('li');
+    const frames = framesList();
+    const i = frames.findIndex((f) => f.id === li.dataset.id);
+    if (i < 0) return;
+    const act = btn.dataset.sl;
+    if (act === 'up' && i > 0) swapFrames(frames[i], frames[i - 1]);
+    else if (act === 'down' && i < frames.length - 1) swapFrames(frames[i], frames[i + 1]);
+    else if (act === 'go') { dlgPres.close(); setTool('selection'); setSelection([frames[i].id]); fitToContent([frames[i]]); return; }
+    else if (act === 'play') { dlgPres.close(); startPresentation(i); return; }
+    renderPresentList();
+    const again = $('[data-id="' + frames[i].id + '"] [data-sl="' + act + '"]', presList);
+    if (again && !again.disabled) again.focus();
+  });
+  $('#present-start').addEventListener('click', () => { dlgPres.close(); startPresentation(0); });
+
+  /* =========================================================
+   * Mode presentació
+   * ========================================================= */
+  let pres = null;
+  const presBar = $('#pres-controls');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  function slideRect(s) {
+    if (s.id) {
+      const f = byId(s.id);
+      if (f) return { x: f.x, y: f.y, w: f.w, h: f.h };
+    }
+    const b = R.sceneBounds(S.elements.filter((el) => !isFrame(el)).length ? S.elements.filter((el) => !isFrame(el)) : S.elements);
+    const pad = Math.max(b.w, b.h) * 0.04 + 20;
+    return { x: b.x - pad, y: b.y - pad, w: b.w + pad * 2, h: b.h + pad * 2 };
+  }
+  function viewFor(r) {
+    const z = clamp(Math.min(W / r.w, H / r.h), MIN_ZOOM, MAX_ZOOM);
+    return { zoom: z, x: W / 2 - (r.x + r.w / 2) * z, y: H / 2 - (r.y + r.h / 2) * z };
+  }
+
+  function startPresentation(from) {
+    if (!S.elements.length) { toast('El llenç és buit: no hi ha res per presentar'); return; }
+    if (editing) commitText();
+    endRenameFrame(true);
+    closeMenu();
+    closeCtxMenu();
+    if (picker.key) closePicker();
+    for (const d of $$('dialog[open]')) d.close();
+    const frames = framesList();
+    const slides = frames.length ? frames.map((f) => ({ id: f.id })) : [{ id: null }];
+    pres = {
+      slides, i: 0, anim: null, laser: [], laserOn: false, touch: null, fs: false,
+      prevView: Object.assign({}, S.view), prevSel: Array.from(S.selected),
+    };
+    S.selected = new Set();
+    S.editingGroup = null;
+    updateProps();
+    document.documentElement.classList.add('presenting');
+    const fsEl = document.documentElement;
+    if (fsEl.requestFullscreen && !document.fullscreenElement) {
+      fsEl.requestFullscreen().then(() => { if (pres) pres.fs = true; }).catch(() => { /* sense pantalla completa */ });
+    }
+    // La mida de la pantalla pot canviar en entrar a pantalla completa
+    requestAnimationFrame(() => { resize(); goSlide(clamp(from || 0, 0, slides.length - 1), false); });
+    showPresBar();
+  }
+  function exitPresentation() {
+    if (!pres) return;
+    const p = pres;
+    pres = null;
+    if (p.anim) cancelAnimationFrame(p.anim.raf);
+    clearTimeout(presBarTimer);
+    document.documentElement.classList.remove('presenting');
+    presBar.hidden = true;
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    requestAnimationFrame(() => {
+      resize();
+      S.view = p.prevView;
+      setSelection(p.prevSel.filter((id) => byId(id)));
+      afterViewChange();
+      updateUI();
+    });
+  }
+  function goSlide(i, animate) {
+    if (!pres) return;
+    i = clamp(i, 0, pres.slides.length - 1);
+    const fromRect = pres.rect || slideRect(pres.slides[pres.i]);
+    pres.i = i;
+    const toRect = slideRect(pres.slides[i]);
+    const target = viewFor(toRect);
+    if (pres.anim) cancelAnimationFrame(pres.anim.raf);
+    pres.anim = null;
+    updatePresBar();
+    if (animate === false || reduceMotion.matches) {
+      pres.rect = toRect;
+      S.view = target;
+      afterViewChange();
+      return;
+    }
+    // Viatge de càmera: zoom interpolat en escala logarítmica, centre en línia recta
+    const v0 = Object.assign({}, S.view);
+    const c0 = [(W / 2 - v0.x) / v0.zoom, (H / 2 - v0.y) / v0.zoom];
+    const c1 = [toRect.x + toRect.w / 2, toRect.y + toRect.h / 2];
+    const dist = Math.hypot(c1[0] - c0[0], c1[1] - c0[1]) * Math.min(v0.zoom, target.zoom);
+    const dur = clamp(380 + dist * 0.25, 380, 900);
+    const t0 = performance.now();
+    const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+    const step = (now) => {
+      if (!pres) return;
+      const t = Math.min(1, (now - t0) / dur);
+      const e = ease(t);
+      const zz = Math.exp(Math.log(v0.zoom) + (Math.log(target.zoom) - Math.log(v0.zoom)) * e);
+      const cx = c0[0] + (c1[0] - c0[0]) * e, cy = c0[1] + (c1[1] - c0[1]) * e;
+      S.view = { zoom: zz, x: W / 2 - cx * zz, y: H / 2 - cy * zz };
+      pres.rect = {
+        x: fromRect.x + (toRect.x - fromRect.x) * e, y: fromRect.y + (toRect.y - fromRect.y) * e,
+        w: fromRect.w + (toRect.w - fromRect.w) * e, h: fromRect.h + (toRect.h - fromRect.h) * e,
+      };
+      pres.maskAlpha = Math.abs(2 * e - 1);
+      requestRender();
+      if (t < 1) pres.anim.raf = requestAnimationFrame(step);
+      else { pres.anim = null; pres.rect = toRect; pres.maskAlpha = 1; afterViewChange(); }
+    };
+    pres.anim = { raf: requestAnimationFrame(step) };
+  }
+  const nextSlide = () => { if (pres && pres.i < pres.slides.length - 1) goSlide(pres.i + 1); };
+  const prevSlide = () => { if (pres && pres.i > 0) goSlide(pres.i - 1); };
+
+  /** Amaga el que queda fora de la diapositiva (amb el color del llenç). */
+  function drawPresMask() {
+    if (!pres || !pres.rect) return;
+    const r = pres.rect;
+    const [x1, y1] = toScreen(r.x, r.y);
+    const [x2, y2] = toScreen(r.x + r.w, r.y + r.h);
+    ctx.save();
+    ctx.globalAlpha = pres.anim ? pres.maskAlpha : 1;
+    ctx.fillStyle = R.canvasBg(S.theme, S.background);
+    ctx.beginPath();
+    ctx.rect(-2, -2, W + 4, H + 4);
+    ctx.rect(x1, y1, x2 - x1, y2 - y1);
+    ctx.fill('evenodd');
+    ctx.restore();
+  }
+
+  /* --- Punter làser: arrossegant amb el ratolí o el llapis --- */
+  const LASER_LIFE = 900;
+  function drawLaser() {
+    if (!pres || !pres.laser.length) return;
+    const now = performance.now();
+    pres.laser = pres.laser.filter((p) => now - p.t < LASER_LIFE);
+    const pts = pres.laser;
+    if (!pts.length) return;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = 'rgba(255,40,40,0.8)';
+    ctx.shadowBlur = 10;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      if (b.gap) continue;
+      const life = 1 - (now - b.t) / LASER_LIFE;
+      ctx.globalAlpha = Math.max(0, life);
+      ctx.strokeStyle = '#ff3b30';
+      ctx.lineWidth = 2 + 4 * life;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+    const last = pts[pts.length - 1];
+    if (pres.laserOn) {
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#ff3b30';
+      ctx.beginPath();
+      ctx.arc(last.x, last.y, 5, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+    requestRender(); // la cua s'esvaeix
+  }
+
+  function presPointerDown(e, sx, sy) {
+    showPresBar();
+    const badge = linkBadgeAt(sx, sy);
+    if (badge && e.button === 0) { openLink(badge.el.link); return; }
+    if (e.pointerType === 'touch') { pres.touch = { x: sx, y: sy, t: performance.now() }; return; }
+    if (e.button !== 0) return;
+    pres.laserOn = true;
+    pres.laser.push({ x: sx, y: sy, t: performance.now(), gap: true });
+    requestRender();
+  }
+  function presPointerMove(e, sx, sy) {
+    if (e.pointerType === 'mouse' || pres.laserOn) showPresBar();
+    if (pres.laserOn) { pres.laser.push({ x: sx, y: sy, t: performance.now() }); requestRender(); }
+    else setCursor(linkBadgeAt(sx, sy) ? 'pointer' : 'default');
+  }
+  function presPointerUp(e, sx, sy) {
+    pres.laserOn = false;
+    const t = pres.touch;
+    pres.touch = null;
+    if (!t) return;
+    // Lliscar el dit cap als costats canvia de diapositiva
+    const dx = sx - t.x, dy = sy - t.y;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3 && performance.now() - t.t < 700) {
+      if (dx < 0) nextSlide(); else prevSlide();
+    }
+  }
+  function presKey(e) {
+    const k = e.key;
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter', 'n', 'N'].includes(k)) { e.preventDefault(); nextSlide(); }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace', 'p', 'P'].includes(k)) { e.preventDefault(); prevSlide(); }
+    else if (k === 'Home') { e.preventDefault(); goSlide(0); }
+    else if (k === 'End') { e.preventDefault(); goSlide(pres.slides.length - 1); }
+    else if (k === 'Escape') { e.preventDefault(); exitPresentation(); }
+    else if (k === 'f' || k === 'F') { e.preventDefault(); togglePresFullscreen(); }
+    else if (e.ctrlKey || e.metaKey) { /* deixa passar Ctrl+R, etc. */ }
+    else e.preventDefault();
+  }
+  function togglePresFullscreen() {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().then(() => { if (pres) pres.fs = true; }).catch(() => toast('El navegador no deixa posar la pantalla completa aquí'));
+    }
+  }
+  document.addEventListener('fullscreenchange', () => {
+    $('#pres-fs').setAttribute('aria-pressed', String(!!document.fullscreenElement));
+    // Si se surt de la pantalla completa (Esc del navegador), també s'acaba la presentació
+    if (pres && pres.fs && !document.fullscreenElement) exitPresentation();
+  });
+
+  /* --- Controls de la presentació (s'amaguen sols) --- */
+  let presBarTimer = 0;
+  function updatePresBar() {
+    if (!pres) return;
+    const s = pres.slides[pres.i];
+    const f = s.id ? byId(s.id) : null;
+    $('#pres-count').textContent = (pres.i + 1) + ' / ' + pres.slides.length;
+    $('#pres-name').textContent = f ? f.name || '' : 'Tot el dibuix';
+    $('#pres-prev').disabled = pres.i === 0;
+    $('#pres-next').disabled = pres.i === pres.slides.length - 1;
+  }
+  function showPresBar() {
+    if (!pres) return;
+    presBar.hidden = false;
+    presBar.classList.add('show');
+    clearTimeout(presBarTimer);
+    presBarTimer = setTimeout(() => {
+      if (pres && !presBar.matches(':hover') && !presBar.contains(document.activeElement)) presBar.classList.remove('show');
+    }, 2600);
+  }
+  $('#pres-prev').addEventListener('click', prevSlide);
+  $('#pres-next').addEventListener('click', nextSlide);
+  $('#pres-exit').addEventListener('click', exitPresentation);
+  $('#pres-fs').addEventListener('click', togglePresFullscreen);
+  presBar.addEventListener('pointerenter', showPresBar);
+
+  /* =========================================================
+   * Mode zen
+   * ========================================================= */
+  function applyZen() {
+    document.documentElement.classList.toggle('zen', !!S.zen);
+    $('#zen-exit').hidden = !S.zen;
+  }
+  function toggleZen() {
+    S.zen = !S.zen;
+    applyZen();
+    updateUI();
+    saveSoon();
+    toast(S.zen ? 'Mode zen: Alt+Z per sortir-ne' : 'Mode zen desactivat');
+    requestRender();
+  }
+  $('#zen-exit').addEventListener('click', toggleZen);
+
+  /* =========================================================
+   * Minimapa
+   * ========================================================= */
+  const mmEl = $('#minimap');
+  const mmCanvas = $('#minimap-canvas');
+  const mmCtx = mmCanvas.getContext('2d');
+  let mmMap = null;   // món → minimapa: m = (w - o) * s
+  let mmDrag = null;
+  /** Sense preferència: visible a l'ordinador i la tauleta, amagat al mòbil. */
+  const minimapOn = () => (S.minimap != null ? S.minimap : !mqPhone.matches);
+  function toggleMinimap() {
+    S.minimap = !minimapOn();
+    updateUI();
+    saveSoon();
+    requestRender();
+  }
+
+  function minimapMapping(cw, ch) {
+    const sb = R.sceneBounds(S.elements);
+    const [vx1, vy1] = toWorld(0, 0);
+    const [vx2, vy2] = toWorld(W, H);
+    // Hi cap tot el dibuix i la zona visible
+    const x1 = Math.min(sb.x, vx1), y1 = Math.min(sb.y, vy1);
+    const x2 = Math.max(sb.x + sb.w, vx2), y2 = Math.max(sb.y + sb.h, vy2);
+    const pad = 8;
+    const w = Math.max(x2 - x1, 1), h = Math.max(y2 - y1, 1);
+    const s = Math.min((cw - pad * 2) / w, (ch - pad * 2) / h);
+    return { s, ox: x1 - (cw / s - w) / 2, oy: y1 - (ch / s - h) / 2 };
+  }
+
+  /** Dibuix simplificat: es veu bé encara que l'escala sigui molt petita. */
+  function drawMiniElement(c, el, m) {
+    const s = m.s;
+    if (el.type === 'frame') {
+      c.globalAlpha = 1;
+      c.setLineDash([3, 2]);
+      c.strokeStyle = frameColors().line;
+      c.lineWidth = 1;
+      c.strokeRect((el.x - m.ox) * s, (el.y - m.oy) * s, el.w * s, el.h * s);
+      c.setLineDash([]);
+      return;
+    }
+    const hasFill = el.fill && el.fill !== 'transparent' && FILLED.has(el.type);
+    const color = R.themeColor(hasFill ? el.fill : el.stroke !== 'transparent' ? el.stroke : el.fill, S.theme) || '#888';
+    c.globalAlpha = Math.max(0.25, (el.opacity == null ? 100 : el.opacity) / 100);
+    if (LINEAR.has(el.type) || el.type === 'freedraw') {
+      const pts = el.type === 'freedraw' ? el.points : R.linearSamples(el);
+      c.beginPath();
+      pts.forEach((p, i) => {
+        const x = (el.x + p[0] - m.ox) * s, y = (el.y + p[1] - m.oy) * s;
+        if (i) c.lineTo(x, y); else c.moveTo(x, y);
+      });
+      c.strokeStyle = R.themeColor(el.stroke, S.theme);
+      c.lineWidth = el.type === 'freedraw' ? 1.3 : 1;
+      c.stroke();
+      return;
+    }
+    const w = Math.max(el.w * s, 1.5), h = Math.max(el.h * s, 1.5);
+    const cx = (el.x + el.w / 2 - m.ox) * s, cy = (el.y + el.h / 2 - m.oy) * s;
+    c.save();
+    c.translate(cx, cy);
+    if (el.angle) c.rotate(el.angle);
+    c.beginPath();
+    if (el.type === 'ellipse') c.ellipse(0, 0, w / 2, h / 2, 0, 0, TAU);
+    else if (el.type === 'diamond') { c.moveTo(0, -h / 2); c.lineTo(w / 2, 0); c.lineTo(0, h / 2); c.lineTo(-w / 2, 0); c.closePath(); }
+    else c.rect(-w / 2, -h / 2, w, h);
+    if (el.type === 'note') {
+      c.fillStyle = R.themeColor(el.fill || R.NOTE_FILL, S.theme);
+      c.fill();
+    } else if (el.type === 'image') {
+      c.fillStyle = S.theme === 'dark' ? '#4a4b55' : '#c9c9d3';
+      c.fill();
+    } else if (el.type === 'text') {
+      // Les línies de text, com a franges
+      c.fillStyle = color;
+      c.globalAlpha *= 0.55;
+      c.fill();
+    } else {
+      if (hasFill) { c.fillStyle = color; c.globalAlpha *= 0.75; c.fill(); c.globalAlpha /= 0.75; }
+      if (el.stroke !== 'transparent') {
+        c.strokeStyle = R.themeColor(el.stroke, S.theme);
+        c.lineWidth = 1;
+        c.stroke();
+      }
+    }
+    c.restore();
+  }
+
+  function renderMinimap() {
+    const on = minimapOn() && S.elements.length > 0;
+    if (mmEl.hidden === on) mmEl.hidden = !on;
+    if (!on) { mmMap = null; return; }
+    const cw = mmEl.clientWidth, ch = mmEl.clientHeight;
+    if (!cw || !ch) return;
+    const pw = Math.round(cw * DPR), ph = Math.round(ch * DPR);
+    if (mmCanvas.width !== pw || mmCanvas.height !== ph) { mmCanvas.width = pw; mmCanvas.height = ph; }
+    // Mentre s'arrossega, l'escala no canvia (si no, el punt sota el dit es mouria)
+    const m = mmDrag ? mmDrag.map : minimapMapping(cw, ch);
+    mmMap = m;
+    const c = mmCtx;
+    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    c.globalAlpha = 1;
+    c.fillStyle = R.canvasBg(S.theme, S.background);
+    c.fillRect(0, 0, cw, ch);
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+    for (const el of S.elements) drawMiniElement(c, el, m);
+    c.globalAlpha = 1;
+    // Zona visible: la resta s'enfosqueix una mica
+    const [vx1, vy1] = toWorld(0, 0);
+    const [vx2, vy2] = toWorld(W, H);
+    const rx = (vx1 - m.ox) * m.s, ry = (vy1 - m.oy) * m.s;
+    const rw = (vx2 - vx1) * m.s, rh = (vy2 - vy1) * m.s;
+    c.beginPath();
+    c.rect(0, 0, cw, ch);
+    c.rect(rx, ry, rw, rh);
+    c.fillStyle = S.theme === 'dark' ? 'rgba(0,0,0,0.45)' : 'rgba(30,30,60,0.10)';
+    c.fill('evenodd');
+    c.strokeStyle = R.THEMES[S.theme].accent;
+    c.lineWidth = 1.5;
+    c.strokeRect(rx, ry, rw, rh);
+  }
+
+  function mmToWorld(e, m) {
+    const r = mmCanvas.getBoundingClientRect();
+    return [(e.clientX - r.left) / m.s + m.ox, (e.clientY - r.top) / m.s + m.oy];
+  }
+  function centerViewOn(wx, wy) {
+    S.view.x = W / 2 - wx * S.view.zoom;
+    S.view.y = H / 2 - wy * S.view.zoom;
+    afterViewChange();
+  }
+  mmCanvas.addEventListener('pointerdown', (e) => {
+    if (!mmMap || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    closeMenu();
+    closeCtxMenu();
+    try { mmCanvas.setPointerCapture(e.pointerId); } catch (_) { /* res */ }
+    const m = mmMap;
+    const [wx, wy] = mmToWorld(e, m);
+    const [cx, cy] = viewCenter();
+    const [vx1, vy1] = toWorld(0, 0);
+    const [vx2, vy2] = toWorld(W, H);
+    // Dins del requadre visible s'arrossega sense saltar; fora, s'hi centra
+    const inside = wx >= vx1 && wx <= vx2 && wy >= vy1 && wy <= vy2;
+    mmDrag = { id: e.pointerId, map: m, dx: inside ? wx - cx : 0, dy: inside ? wy - cy : 0 };
+    mmEl.classList.add('dragging');
+    if (!inside) centerViewOn(wx, wy);
+  });
+  mmCanvas.addEventListener('pointermove', (e) => {
+    if (!mmDrag || e.pointerId !== mmDrag.id) return;
+    const [wx, wy] = mmToWorld(e, mmDrag.map);
+    centerViewOn(wx - mmDrag.dx, wy - mmDrag.dy);
+  });
+  const endMmDrag = (e) => {
+    if (!mmDrag || e.pointerId !== mmDrag.id) return;
+    mmDrag = null;
+    mmEl.classList.remove('dragging');
+    requestRender();
+  };
+  mmCanvas.addEventListener('pointerup', endMmDrag);
+  mmCanvas.addEventListener('pointercancel', endMmDrag);
+  mmCanvas.addEventListener('dblclick', (e) => { e.preventDefault(); fitToContent(); });
+  mmCanvas.addEventListener('wheel', (e) => { e.preventDefault(); zoomStep(e.deltaY < 0 ? 1 : -1); }, { passive: false });
+  mmCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
 
   /* =========================================================
    * Menú contextual (botó dret o toc llarg)
@@ -3556,11 +4223,22 @@
         { id: 'export', label: 'Exporta la imatge…', kbd: 'Ctrl+Maj+E', icon: iconOf('#props [data-action="export-selection"]'), disabled: empty },
         '-',
         { id: 'grid', label: 'Quadrícula', kbd: 'G', icon: iconOf('#menu [data-action="grid"]'), checked: !!S.grid },
+        { id: 'minimap', label: 'Minimapa', kbd: 'M', icon: iconOf('#menu [data-action="minimap"]'), checked: minimapOn() },
+        { id: 'zen', label: 'Mode zen', kbd: 'Alt+Z', icon: iconOf('#menu [data-action="zen"]'), checked: !!S.zen },
+        '-',
+        { id: 'present', label: 'Presenta', kbd: 'Alt+Maj+P', icon: iconOf('#menu [data-action="present"]'), disabled: empty },
       ];
     }
     const units = selectionUnits();
     const sel = selectedEls();
     const items = [];
+    if (sel.length === 1 && sel[0].type === 'frame') {
+      items.push(
+        { id: 'rename-frame', label: 'Reanomena el marc', kbd: 'Retorn', icon: iconOf('#toolbar [data-tool="text"]') },
+        { id: 'present-from', label: 'Presenta des d\'aquest marc', icon: iconOf('#menu [data-action="present"]') },
+        '-',
+      );
+    }
     if (sel.length === 1 && (sel[0].type === 'note' || sel[0].type === 'text')) {
       items.push({ id: 'edit-note', label: 'Edita el text', kbd: 'Retorn', icon: iconOf('#toolbar [data-tool="text"]') }, '-');
     }
@@ -3733,6 +4411,7 @@
 
   canvas.addEventListener('contextmenu', (e) => {
     e.preventDefault();
+    if (pres) return;
     if (ctxOpen && lastPointerType !== 'mouse') return; // ja obert amb el toc llarg
     ctxAtPoint(e.clientX, e.clientY);
   });
@@ -3810,7 +4489,7 @@
   async function quickExport(fmt) {
     if (editing) commitText();
     const selOnly = S.selected.size > 0;
-    const els = selOnly ? selectedEls() : S.elements;
+    const els = selOnly ? withFrameChildren(selectedEls()) : S.elements;
     if (!els.length) { toast('El llenç és buit: no hi ha res per exportar'); return; }
     const name = exportFileName(fmt, selOnly);
     if (fmt === 'svg') {
@@ -3837,6 +4516,8 @@
       case 'edit-note': { const n = selectedEls(); if (n.length === 1) startEditText(n[0], false); break; }
       case 'open-link': { const n = selectedEls(); if (n.length === 1) openLink(n[0].link); break; }
       case 'remove-link': removeLink(linkTarget()); break;
+      case 'rename-frame': { const n = selectedEls(); if (n.length === 1) startRenameFrame(n[0]); break; }
+      case 'present-from': { const n = selectedEls(); const i = framesList().indexOf(n[0]); startPresentation(Math.max(0, i)); break; }
       default:
         if (a.indexOf('shadow-') === 0) setProp('shadow', +a.slice(7));
         else runAction(a);
@@ -4359,7 +5040,7 @@
   const expBgImg = $('#exp-bgimg');
   let expScale = 2;
 
-  const exportEls = () => (expSel.checked && S.selected.size ? selectedEls() : S.elements);
+  const exportEls = () => (expSel.checked && S.selected.size ? withFrameChildren(selectedEls()) : S.elements);
   /** La imatge de fons s'exporta només si n'hi ha, si es vol i si s'exporta amb fons. */
   const exportBgImage = () => (S.bgImage && expBg.checked && expBgImg.checked ? S.bgImage : null);
   const exportOpts = (scale) => ({
@@ -4473,7 +5154,7 @@
   /** Alt+Maj+C: copia la selecció (o tot el dibuix) com a PNG, amb les opcions d'exportació actuals. */
   async function copyAsPng() {
     if (editing) commitText();
-    const els = S.selected.size ? selectedEls() : S.elements;
+    const els = S.selected.size ? withFrameChildren(selectedEls()) : S.elements;
     if (!els.length) { toast('El llenç és buit: no hi ha res per copiar'); return; }
     const opts = quickExportOpts(2);
     try {
@@ -4492,6 +5173,7 @@
     loadSaved();
     updateDocTitle();
     applyToolbarPos();
+    applyZen();
     S.elements = S.elements.map(normalizeElement);
     applyTheme();
     resize();
